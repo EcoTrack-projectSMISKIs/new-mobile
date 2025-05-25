@@ -13,7 +13,7 @@ class _EnergyDashboardState extends State<EnergyDashboard> {
   // Dummy data for appliance energy consumption
   final List<ApplianceData> appliancesData = [
     ApplianceData('AC', 2982, Colors.green[600]!),
-    ApplianceData('Refrigerator', 1850, Colors.green[500]!),
+    ApplianceData('Ref', 1850, Colors.green[500]!),
     ApplianceData('Oven', 1350, Colors.green[400]!),
     ApplianceData('Fan', 650, Colors.lightGreen[300]!),
     ApplianceData('Other', 900, Colors.grey[400]!),

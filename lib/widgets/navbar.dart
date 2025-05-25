@@ -1,10 +1,9 @@
-import 'package:ecotrack_mobile/features/add_smartplug/scan_for_smartplug_controller.dart';
+import 'package:flutter/material.dart';
+import 'package:ecotrack_mobile/features/add_smartplug/select_smartplug.dart';
 import 'package:ecotrack_mobile/features/appliance_list/appliances.dart';
+import 'package:ecotrack_mobile/features/dashboard/dashboard.dart';
 import 'package:ecotrack_mobile/features/news_and_updates/news_and_updates.dart';
 import 'package:ecotrack_mobile/features/account_settings/profile_settings.dart';
-import 'package:ecotrack_mobile/features/dashboard/dashboard.dart';
-import 'package:ecotrack_mobile/features/add_smartplug/select_smartplug.dart';
-import 'package:flutter/material.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
   final int selectedIndex;
@@ -42,8 +41,13 @@ class CustomBottomNavBar extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(BuildContext context, String iconPath,
-      String activeIconPath, String label, int index) {
+  Widget _buildNavItem(
+      BuildContext context,
+      String iconPath,
+      String activeIconPath,
+      String label,
+      int index,
+  ) {
     final isActive = selectedIndex == index;
     final color = isActive ? Colors.green : Colors.grey;
     final imagePath = isActive ? activeIconPath : iconPath;
@@ -52,20 +56,39 @@ class CustomBottomNavBar extends StatelessWidget {
       onTap: () => _handleTap(context, index),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Image.asset(
-            imagePath,
-            width: 32,
-            height: 32,
-            color: color,
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: Center(
+              child: Image.asset(
+                imagePath,
+                width: 30,
+                height: 30,
+                color: color,
+              ),
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(label,
-              style: TextStyle(
+          const SizedBox(height: 3),
+          Container(
+            height: 16, // Fixed height for text to ensure consistent alignment
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
                   color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: "Proxima Nova")),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: "Proxima Nova",
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -74,51 +97,62 @@ class CustomBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 80, // Increased from default ~56–70 to ~90 for taller bar
+      height: 80,
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(
           top: BorderSide(color: Colors.grey.shade300),
         ),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.only(top: 8, bottom: 10),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        // Remove spaceEvenly and let Expanded handle the spacing
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _buildNavItem(
-            context,
-            'assets/icons/navbarlogos/dashboard.png',
-            'assets/icons/navbarlogos/dashboard_g.png',
-            'Dashboard',
-            0,
+          Expanded(
+            child: _buildNavItem(
+              context,
+              'assets/icons/navbarlogos/dashboard.png',
+              'assets/icons/navbarlogos/dashboard_g.png',
+              'Home',
+              0,
+            ),
           ),
-          _buildNavItem(
-            context,
-            'assets/icons/navbarlogos/plug.png',
-            'assets/icons/navbarlogos/plug_g.png',
-            'Appliances',
-            1,
+          Expanded(
+            child: _buildNavItem(
+              context,
+              'assets/icons/navbarlogos/plug.png',
+              'assets/icons/navbarlogos/plug_g.png',
+              'Devices',
+              1,
+            ),
           ),
-          _buildNavItem(
-            context,
-            'assets/icons/navbarlogos/add.png',
-            'assets/icons/navbarlogos/add_g.png',
-            'Add Device',
-            2,
+          Expanded(
+            child: _buildNavItem(
+              context,
+              'assets/icons/navbarlogos/add.png',
+              'assets/icons/navbarlogos/add_g.png',
+              'Device',
+              2,
+            ),
           ),
-          _buildNavItem(
-            context,
-            'assets/icons/navbarlogos/news.png',
-            'assets/icons/navbarlogos/news_g.png',
-            'Updates',
-            3,
+          Expanded(
+            child: _buildNavItem(
+              context,
+              'assets/icons/navbarlogos/news.png',
+              'assets/icons/navbarlogos/news_g.png',
+              'News',
+              3,
+            ),
           ),
-          _buildNavItem(
-            context,
-            'assets/icons/navbarlogos/settings.png',
-            'assets/icons/navbarlogos/settings.png',
-            'Settings',
-            4,
+          Expanded(
+            child: _buildNavItem(
+              context,
+              'assets/icons/navbarlogos/profile.png',
+              'assets/icons/navbarlogos/profile_g.png',
+              'Profile',
+              4,
+            ),
           ),
         ],
       ),

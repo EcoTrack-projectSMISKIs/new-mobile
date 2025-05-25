@@ -10,7 +10,8 @@ import 'package:ecotrack_mobile/widgets/success_modal.dart';
 import 'package:ecotrack_mobile/features/appliance_list/appliances.dart';
 import 'package:ecotrack_mobile/features/news_and_updates/news_and_updates.dart';
 import 'package:ecotrack_mobile/features/add_smartplug/select_smartplug.dart';
-
+import 'package:wifi_scan/wifi_scan.dart';
+//import 'package:ecotrack_mobile/features/add_smartplug/static.dart';
 
 
 Future<void> main() async {
@@ -104,11 +105,13 @@ class _SplashScreenState extends State<SplashScreen> {
 //   runApp(
 //     MaterialApp(
 //       debugShowCheckedModeBanner: false,
-//       home: SelectSmartPlugsScreen(),
+//       home: WiFiConnectionScreen(),
 //     ),
 //   );
 // }
- 
+
+
+
 
 // TESTING THE FRONTEND OF MODALS
 
