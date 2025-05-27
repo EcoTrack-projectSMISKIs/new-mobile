@@ -92,7 +92,7 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
             GestureDetector(
               onTap: _pickImage,
               child: CircleAvatar(
-                radius: 60,
+                radius: 65,
                 backgroundImage: profileImage != null
                     ? FileImage(profileImage!)
                     : const AssetImage("assets/icons/profile_icon.png")

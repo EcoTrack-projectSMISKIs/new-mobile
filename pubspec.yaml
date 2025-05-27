@@ -23,6 +23,7 @@ dependencies:
   shared_preferences: ^2.5.3
   pin_code_fields: ^8.0.1
   image_picker: ^1.1.2
+  syncfusion_flutter_charts: ^29.1.38
 
 
 dev_dependencies:
@@ -69,5 +70,15 @@ flutter:
     - assets/icons/
     - assets/icons/navbarlogos/
     - assets/icons/appliancelogos/
+    - assets/icons/appliancelogos/aircon/
+    - assets/icons/appliancelogos/computer/
+    - assets/icons/appliancelogos/default/
+    - assets/icons/appliancelogos/fan/
+    - assets/icons/appliancelogos/laptop/
+    - assets/icons/appliancelogos/microwave/
+    - assets/icons/appliancelogos/refrigerator/
+    - assets/icons/appliancelogos/smartphone/
+    - assets/icons/appliancelogos/tv/
+    - assets/icons/appliancelogos/washing_machine/
     - assets/lottie/
     - .env

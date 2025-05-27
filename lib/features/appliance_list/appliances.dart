@@ -19,7 +19,81 @@ class _AppliancesPageState extends State<AppliancesPage> {
   bool _isLoading = true;
   String? userId;
 
-  
+  // Icon variants map - same as in name_plug.dart
+  final Map<String, List<String>> applianceIconVariants = {
+    'aircon': [
+      'assets/icons/appliancelogos/aircon/aircon.png',
+      'assets/icons/appliancelogos/aircon/aircon_2.png',
+      'assets/icons/appliancelogos/aircon/aircon_3.png',
+      'assets/icons/appliancelogos/aircon/aircon_4.png',
+      'assets/icons/appliancelogos/aircon/aircon_5.png',
+    ],
+    'computer': [
+      'assets/icons/appliancelogos/computer/computer.png',
+      'assets/icons/appliancelogos/computer/computer_2.png',
+      'assets/icons/appliancelogos/computer/computer_3.png',
+      'assets/icons/appliancelogos/computer/computer_4.png',
+      'assets/icons/appliancelogos/computer/computer_5.png',
+    ],
+    'fan': [
+      'assets/icons/appliancelogos/fan/fan.png',
+      'assets/icons/appliancelogos/fan/fan_2.png',
+      'assets/icons/appliancelogos/fan/fan_3.png',
+      'assets/icons/appliancelogos/fan/fan_4.png',
+      'assets/icons/appliancelogos/fan/fan_5.png',
+    ],
+    'laptop': [
+      'assets/icons/appliancelogos/laptop/laptop.png',
+      'assets/icons/appliancelogos/laptop/laptop_2.png',
+      'assets/icons/appliancelogos/laptop/laptop_3.png',
+      'assets/icons/appliancelogos/laptop/laptop_4.png',
+      'assets/icons/appliancelogos/laptop/laptop_5.png',
+    ],
+    'microwave': [
+      'assets/icons/appliancelogos/microwave/microwave.png',
+      'assets/icons/appliancelogos/microwave/microwave_2.png',
+      'assets/icons/appliancelogos/microwave/microwave_3.png',
+      'assets/icons/appliancelogos/microwave/microwave_4.png',
+      'assets/icons/appliancelogos/microwave/microwave_5.png',
+    ],
+    'refrigerator': [
+      'assets/icons/appliancelogos/refrigerator/refrigerator.png',
+      'assets/icons/appliancelogos/refrigerator/refrigerator_2.png',
+      'assets/icons/appliancelogos/refrigerator/refrigerator_3.png',
+      'assets/icons/appliancelogos/refrigerator/refrigerator_4.png',
+      'assets/icons/appliancelogos/refrigerator/refrigerator_5.png',
+    ],
+    'smartphone': [
+      'assets/icons/appliancelogos/smartphone/phone.png',
+      'assets/icons/appliancelogos/smartphone/phone_2.png',
+      'assets/icons/appliancelogos/smartphone/phone_3.png',
+      'assets/icons/appliancelogos/smartphone/phone_4.png',
+      'assets/icons/appliancelogos/smartphone/phone_5.png',
+    ],
+    'tv': [
+      'assets/icons/appliancelogos/tv/tv.png',
+      'assets/icons/appliancelogos/tv/tv_2.png',
+      'assets/icons/appliancelogos/tv/tv_3.png',
+      'assets/icons/appliancelogos/tv/tv_4.png',
+      'assets/icons/appliancelogos/tv/tv_5.png',
+    ],
+    'washing_machine': [
+      'assets/icons/appliancelogos/washing_machine/washingmachine.png',
+      'assets/icons/appliancelogos/washing_machine/washingmachine_2.png',
+      'assets/icons/appliancelogos/washing_machine/washingmachine_3.png',
+      'assets/icons/appliancelogos/washing_machine/washingmachine_4.png',
+      'assets/icons/appliancelogos/washing_machine/washingmachine_5.png',
+      'assets/icons/appliancelogos/washing_machine/tumble-dryer.png',
+    ],
+    'default': [
+      'assets/icons/appliancelogos/default/default.png',
+      'assets/icons/appliancelogos/default/default_2.png',
+      'assets/icons/appliancelogos/default/default_3.png',
+      'assets/icons/appliancelogos/default/default_4.png',
+      'assets/icons/appliancelogos/default/default_5.png',
+    ],
+  };
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +105,7 @@ class _AppliancesPageState extends State<AppliancesPage> {
     final storedUserId = prefs.getString('userId');
 
     if (storedUserId != null) {
+      if (!mounted) return;
       setState(() {
         userId = storedUserId;
       });
@@ -41,68 +116,151 @@ class _AppliancesPageState extends State<AppliancesPage> {
     }
   }
 
-Future<void> _fetchPlugs() async {
-  if (userId == null) {
-    print('User ID is null');
-    return;
-  }
-
-  final String apiUrl = '${dotenv.env['BASE_URL']}/api/auth/mobile/$userId/plugs';
-
-  try {
-    final response = await http.get(Uri.parse(apiUrl));
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final List plugs = data['plugs'];
-
-      setState(() {
-        _plugs = plugs.cast<Map<String, dynamic>>();
-        _plugStates = {
-          for (var plug in _plugs) plug['_id']: false,
-        };
-        _isLoading = false;
-      });
-    } else {
-      throw Exception('Failed to load plugs');
+  Future<void> _fetchPlugs() async {
+    if (userId == null) {
+      print('User ID is null');
+      return;
     }
-  } catch (e) {
-    print('Error fetching plugs: $e');
-    setState(() => _isLoading = false);
+
+    final String apiUrl =
+        '${dotenv.env['BASE_URL']}/api/auth/mobile/$userId/plugs';
+
+    try {
+      final response = await http.get(Uri.parse(apiUrl));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List plugs = data['plugs'];
+
+        Map<String, bool> plugStates = {};
+
+        // Fetch status for each plug
+        for (var plug in plugs) {
+          final plugId = plug['_id'];
+          final status = await fetchPlugSwitch(plugId);
+          plugStates[plugId] = status;
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _plugs = plugs.cast<Map<String, dynamic>>();
+          _plugStates = plugStates;
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to load plugs');
+      }
+    } catch (e) {
+      print('Error fetching plugs: $e');
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
   }
-}
 
-
-  Future<void> togglePlugPower(String plugId, bool turnOn) async {
+  Future<bool> fetchPlugSwitch(String plugId) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
     if (token == null || token.isEmpty) {
       print('Token not found');
-      return;
+      return false;
     }
 
-    final endpoint = turnOn ? 'on' : 'off';
-    final url =
-        Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId/$endpoint');
+    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId/switch');
 
     try {
-      final response = await http.post(
+      final response = await http.get(
         url,
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
 
       if (response.statusCode == 200) {
-        print('Plug $plugId turned ${turnOn ? 'on' : 'off'}');
+        final data = json.decode(response.body);
+        return data['status'] == true; // status is boolean
       } else {
-        print('Failed to toggle plug. Status code: ${response.statusCode}');
+        print('Failed to fetch plug status: ${response.statusCode}');
+        return false;
       }
     } catch (e) {
-      print('Error toggling plug: $e');
+      print('Error fetching plug status: $e');
+      return false;
     }
+  }
+
+ Future<void> togglePlugPower(String plugId, bool turnOn) async {
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString('token');
+
+  if (token == null || token.isEmpty) {
+    print('Token not found');
+    return;
+  }
+
+  // Optimistically update UI if widget still mounted
+  if (mounted) {
+    setState(() {
+      _plugStates[plugId] = turnOn;
+    });
+  }
+
+  final endpoint = turnOn ? 'on' : 'off';
+  final url =
+      Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId/$endpoint');
+
+  try {
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      print('Plug $plugId turned ${turnOn ? 'on' : 'off'}');
+
+      await Future.delayed(const Duration(seconds: 3)); // Give device time to update
+
+      final confirmed = await fetchPlugSwitch(plugId);
+
+      if (mounted) {
+        setState(() {
+          _plugStates[plugId] = confirmed;
+        });
+      }
+    } else {
+      print('Failed to toggle plug. Status code: ${response.statusCode}');
+
+      if (mounted) {
+        setState(() {
+          _plugStates[plugId] = !turnOn; // revert UI toggle on failure
+        });
+      }
+    }
+  } catch (e) {
+    print('Error toggling plug: $e');
+
+    if (mounted) {
+      setState(() {
+        _plugStates[plugId] = !turnOn; // revert UI toggle on error
+      });
+    }
+  }
+}
+
+
+  // Helper method to get the correct icon path based on iconKey and iconVariant
+  String _getIconPath(String? iconKey, int? iconVariant) {
+    final key = iconKey ?? 'default';
+    final variant = iconVariant ?? 0;
+
+    final variants =
+        applianceIconVariants[key] ?? applianceIconVariants['default']!;
+    final safeVariant = variant.clamp(0, variants.length - 1);
+
+    return variants[safeVariant];
   }
 
   @override
@@ -143,8 +301,8 @@ Future<void> _fetchPlugs() async {
                               title: plug['name'] ?? 'Unnamed Plug',
                               subtitle:
                                   '${plug['applianceName'] ?? 'Unknown Appliance'}\nTotal: ${plug['energy']?['Total']?.toStringAsFixed(3) ?? '0.000'} kWh',
-                              iconPath:
-                                  'assets/icons/appliancelogos/${plug['icon'] ?? 'plug'}.png',
+                              iconPath: _getIconPath(
+                                  plug['iconKey'], plug['iconVariant']),
                               isOn: isOn,
                               onToggle: (value) async {
                                 setState(() {

@@ -9,7 +9,7 @@
 
 
     <application
-        android:label="wifi_iot_test"
+        android:label="EcoTrack"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"

@@ -1,4 +1,5 @@
 import 'package:ecotrack_mobile/features/add_smartplug/select_home_wifi.dart';
+import 'package:ecotrack_mobile/features/appliance_list/appliance_details.dart';
 import 'package:ecotrack_mobile/features/landing_page/landing_page.dart';
 import 'package:ecotrack_mobile/widgets/navbar.dart';
 import 'package:flutter/material.dart';
@@ -105,7 +106,7 @@ class _SplashScreenState extends State<SplashScreen> {
 //   runApp(
 //     MaterialApp(
 //       debugShowCheckedModeBanner: false,
-//       home: WiFiConnectionScreen(),
+//       home: ApplianceDetails(plugId: "682f0fbe2fbdf8bda0d3cfb9"),
 //     ),
 //   );
 // }

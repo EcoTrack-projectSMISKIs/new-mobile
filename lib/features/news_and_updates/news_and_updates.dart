@@ -16,6 +16,7 @@ class NewsAndUpdates extends StatefulWidget {
 class _NewsAndUpdatesState extends State<NewsAndUpdates> {
   List<dynamic> announcements = [];
   List<dynamic> updates = [];
+  bool isLoading = true; // loading state
 
   static final String apiUrl =
       '${dotenv.env['BASE_URL']}/api/news?status=published';
@@ -27,10 +28,18 @@ class _NewsAndUpdatesState extends State<NewsAndUpdates> {
   }
 
   Future<void> fetchNews() async {
+    if (!mounted) return;
+    setState(() {
+      isLoading = true;
+    });
+
+    final stopwatch = Stopwatch()..start();
+
     try {
       final response = await http.get(Uri.parse(apiUrl));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        if (!mounted) return;
         setState(() {
           announcements = data
               .where((item) =>
@@ -49,6 +58,17 @@ class _NewsAndUpdatesState extends State<NewsAndUpdates> {
     } catch (e) {
       print("Error fetching news: $e");
     }
+
+    // Ensure loading spinner shows at least 3 seconds
+    final elapsed = stopwatch.elapsedMilliseconds;
+    if (elapsed < 3000) {
+      await Future.delayed(Duration(milliseconds: 3000 - elapsed));
+    }
+
+    if (!mounted) return;
+    setState(() {
+      isLoading = false;
+    });
   }
 
   // Vertical card for Updates
@@ -186,50 +206,69 @@ class _NewsAndUpdatesState extends State<NewsAndUpdates> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
-          child: newsArticlesEmpty()
-              ? const Center(child: CircularProgressIndicator())
-              : ListView(
-                  children: [
-                    const SizedBox(height: 10),
-                    const Text(
-                      "Announcements",
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+          child: RefreshIndicator(
+            onRefresh: fetchNews,
+            child: isLoading
+                ? ListView(
+                    // so RefreshIndicator works while loading
+                    children: const [
+                      SizedBox(height: 300),
+                      Center(child: CircularProgressIndicator()),
+                    ],
+                  )
+                : newsArticlesEmpty()
+                    ? ListView(
+                        children: const [
+                          SizedBox(height: 300),
+                          Center(child: Text('No news available')),
+                        ],
+                      )
+                    : ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          const SizedBox(height: 10),
+                          const Text(
+                            "Announcements",
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            height: 180,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: announcements.length,
+                              itemBuilder: (context, index) {
+                                return buildHorizontalNewsCard(
+                                    announcements[index]);
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 40),
+                          const Text(
+                            "Updates",
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          ...updates
+                              .map((news) => buildNewsCard(news))
+                              .toList(),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 180, // Adjusted height for horizontal layout
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: announcements.length,
-                        itemBuilder: (context, index) {
-                          return buildHorizontalNewsCard(announcements[index]);
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                    const Text(
-                      "Updates",
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    ...updates.map((news) => buildNewsCard(news)).toList(),
-                  ],
-                ),
+          ),
         ),
       ),
-
       bottomNavigationBar: SafeArea(
         bottom: false,
-            child: CustomBottomNavBar(selectedIndex: 3),
-        ),
+        child: CustomBottomNavBar(selectedIndex: 3),
+      ),
     );
   }
 

@@ -132,7 +132,7 @@ class CustomBottomNavBar extends StatelessWidget {
               context,
               'assets/icons/navbarlogos/add.png',
               'assets/icons/navbarlogos/add_g.png',
-              'Device',
+              'Add Device',
               2,
             ),
           ),

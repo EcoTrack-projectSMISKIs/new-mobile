@@ -59,7 +59,8 @@ class _LoginPageState extends State<LoginPage> {
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const EnergyDashboard()),
+          MaterialPageRoute(builder: (context) => const EnergyDashboard(),
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
