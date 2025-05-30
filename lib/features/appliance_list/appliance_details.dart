@@ -63,7 +63,7 @@ class _ApplianceDetailsState extends State<ApplianceDetails> {
         setState(() {
           // recommendation = data['recommendation'] ?? "No recommendation found.";
           //recommendation ="${data['recommendation']}\n\nUsage: ${data['yesterdayUsage']}Wh\nNote: ${data['message']}";
-           recommendation = "Based on your yesterday's usage (${data['yesterdayUsage']}kWh), ${data['recommendation']}";
+           recommendation = "Based on your yesterday's usage (${data['yesterdayUsage']}kWh), ${data['recommendation']}"; // not sure if kwh or w
         });
       } else {
         setState(() {

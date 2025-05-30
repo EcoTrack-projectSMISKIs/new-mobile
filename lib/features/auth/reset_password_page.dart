@@ -129,7 +129,7 @@ Future<void> resetPassword() async {
                                   resetPassword();
                                 }
                               },
-                              child: const Text("Reset Password", style: TextStyle(fontSize: 16)),
+                              child: const Text("Reset Password", style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ],

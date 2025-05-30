@@ -95,7 +95,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                   requestOtp();
                                 }
                               },
-                              child: const Text("Send OTP", style: TextStyle(fontSize: 16)),
+                              child: const Text("Send OTP", style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
                             ),
                           )
                         ],

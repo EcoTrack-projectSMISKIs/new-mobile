@@ -1,9 +1,11 @@
 import 'package:ecotrack_mobile/features/add_smartplug/select_home_wifi.dart';
 import 'package:ecotrack_mobile/features/appliance_list/appliance_details.dart';
+import 'package:ecotrack_mobile/features/dashboard/dashboard.dart';
 import 'package:ecotrack_mobile/features/landing_page/landing_page.dart';
 import 'package:ecotrack_mobile/widgets/navbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:ecotrack_mobile/features/add_smartplug/name_plug.dart';
 import 'package:ecotrack_mobile/widgets/error_modal.dart';
@@ -37,6 +39,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -48,24 +52,40 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 2), () {
+    checkLoginStatus();
+  }
+
+  Future<void> checkLoginStatus() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
+
+    await Future.delayed(const Duration(seconds: 2)); // Optional splash delay
+
+    if (token != null && token.isNotEmpty) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const EnergyDashboard()),
+      );
+    } else {
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const LandingPage()),
       );
-    });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF109717), // match your green screen
+      backgroundColor: const Color(0xFF109717),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              'assets/lottie/logo.png', // make sure logo is placed in assets folder
+              'assets/lottie/logo.png',
               width: 120,
             ),
             const SizedBox(height: 32),
@@ -84,6 +104,7 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
+
 
 
 

@@ -21,7 +21,115 @@ class _RegisterPageState extends State<RegisterPage> {
   String password = '';
   String barangay = '';
 
+  bool isLoading = false;
+
+  // Input validation methods
+  String? _validateName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return "Full name is required";
+    }
+    if (value.trim().length < 2) {
+      return "Name must be at least 2 characters long";
+    }
+    if (value.trim().length > 50) {
+      return "Name must be less than 50 characters";
+    }
+    // Check if name contains only letters and spaces
+    if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(value.trim())) {
+      return "Name can only contain letters and spaces";
+    }
+    return null;
+  }
+
+  String? _validateUsername(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return "Username is required";
+    }
+    if (value.trim().length < 3) {
+      return "Username must be at least 3 characters long";
+    }
+    if (value.trim().length > 20) {
+      return "Username must be less than 20 characters";
+    }
+    // Check if username contains only alphanumeric characters and underscores
+    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value.trim())) {
+      return "Username can only contain letters, numbers, and underscores";
+    }
+    // Check if username starts with a letter
+    if (!RegExp(r'^[a-zA-Z]').hasMatch(value.trim())) {
+      return "Username must start with a letter";
+    }
+    return null;
+  }
+
+  String? _validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return "Phone number is required";
+    }
+    // Remove any non-digit characters for validation
+    String cleanPhone = value.replaceAll(RegExp(r'[^\d]'), '');
+    
+    // Philippine mobile number validation (09xxxxxxxxx or +639xxxxxxxxx)
+    if (cleanPhone.length == 11 && cleanPhone.startsWith('09')) {
+      return null; // Valid format: 09xxxxxxxxx
+    } else if (cleanPhone.length == 13 && cleanPhone.startsWith('639')) {
+      return null; // Valid format: +639xxxxxxxxx (without the +)
+    } else if (cleanPhone.length == 10 && cleanPhone.startsWith('9')) {
+      return null; // Valid format: 9xxxxxxxxx
+    } else {
+      return "Please enter a valid Philippine mobile number";
+    }
+  }
+
+  String? _validateEmail(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return "Email is required";
+    }
+    // Email regex pattern
+    if (!RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+        .hasMatch(value.trim())) {
+      return "Please enter a valid email address";
+    }
+    if (value.trim().length > 100) {
+      return "Email must be less than 100 characters";
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return "Password is required";
+    }
+    if (value.length < 8) {
+      return "Password must be at least 8 characters long";
+    }
+    if (value.length > 128) {
+      return "Password must be less than 128 characters";
+    }
+    // Check for at least one uppercase letter
+    if (!RegExp(r'[A-Z]').hasMatch(value)) {
+      return "Password must contain at least one uppercase letter";
+    }
+    // Check for at least one lowercase letter
+    if (!RegExp(r'[a-z]').hasMatch(value)) {
+      return "Password must contain at least one lowercase letter";
+    }
+    // Check for at least one digit
+    if (!RegExp(r'[0-9]').hasMatch(value)) {
+      return "Password must contain at least one number";
+    }
+    // Check for at least one special character
+    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(value)) {
+      return "Password must contain at least one special character";
+    }
+    return null;
+  }
+
   Future<void> register() async {
+    setState(() {
+      isLoading = true;
+    });
+
     final url = Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/register');
 
     try {
@@ -29,10 +137,10 @@ class _RegisterPageState extends State<RegisterPage> {
         url,
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "name": name,
-          "username": username,
-          "phone": phone,
-          "email": email,
+          "name": name.trim(),
+          "username": username.trim().toLowerCase(),
+          "phone": phone.trim(),
+          "email": email.trim().toLowerCase(),
           "password": password,
           "barangay": barangay,
         }),
@@ -51,7 +159,7 @@ class _RegisterPageState extends State<RegisterPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (context) => VerifyAccountPage(email: email)),
+              builder: (context) => VerifyAccountPage(email: email.trim())),
         );
       } else {
         if (!mounted) return;
@@ -66,6 +174,12 @@ class _RegisterPageState extends State<RegisterPage> {
         const SnackBar(
             content: Text("Something went wrong. Please try again.")),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -117,14 +231,34 @@ class _RegisterPageState extends State<RegisterPage> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      _buildField("Full Name", (val) => name = val),
-                      _buildField("Username", (val) => username = val),
-                      _buildField("Phone", (val) => phone = val,
-                          type: TextInputType.phone),
-                      _buildField("Email", (val) => email = val,
-                          type: TextInputType.emailAddress),
-                      _buildField("Password", (val) => password = val,
-                          isPassword: true),
+                      _buildField(
+                        "Full Name", 
+                        (val) => name = val,
+                        validator: _validateName,
+                      ),
+                      _buildField(
+                        "Username", 
+                        (val) => username = val,
+                        validator: _validateUsername,
+                      ),
+                      _buildField(
+                        "Phone", 
+                        (val) => phone = val,
+                        type: TextInputType.phone,
+                        validator: _validatePhone,
+                      ),
+                      _buildField(
+                        "Email", 
+                        (val) => email = val,
+                        type: TextInputType.emailAddress,
+                        validator: _validateEmail,
+                      ),
+                      _buildField(
+                        "Password", 
+                        (val) => password = val,
+                        isPassword: true,
+                        validator: _validatePassword,
+                      ),
                       DropdownButtonFormField<String>(
                         value: barangay.isNotEmpty ? barangay : null,
                         items: <String>[
@@ -180,7 +314,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         decoration:
                             const InputDecoration(labelText: "Barangay"),
                         validator: (val) =>
-                            val == null || val.isEmpty ? "Required" : null,
+                            val == null || val.isEmpty ? "Please select a barangay" : null,
                       ),
                       const SizedBox(height: 24),
                       SizedBox(
@@ -192,17 +326,30 @@ class _RegisterPageState extends State<RegisterPage> {
                                 borderRadius: BorderRadius.circular(30)),
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
-                          onPressed: () async {
-                            if (_formKey.currentState!.validate()) {
-                              await register();
-                            }
-                          },
-                          child: const Text("Next Step",
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontFamily: 'Arial',
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white)),
+                          onPressed: isLoading
+                              ? null
+                              : () async {
+                                  if (_formKey.currentState!.validate()) {
+                                    await register();
+                                  }
+                                },
+                          child: isLoading
+                              ? const SizedBox(
+                                  height: 24,
+                                  width: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 3,
+                                  ),
+                                )
+                              : const Text(
+                                  "Next Step",
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontFamily: 'Arial',
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -210,7 +357,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         alignment: WrapAlignment.center,
                         children: [
                           const Text(
-                              "By continuing, you agree to have read and understood Ecotrack’s "),
+                              "By continuing, you agree to have read and understood Ecotrack's "),
                           GestureDetector(
                             onTap: () {
                               Navigator.push(
@@ -254,7 +401,9 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Widget _buildField(String label, Function(String) onChanged,
-      {TextInputType type = TextInputType.text, bool isPassword = false}) {
+      {TextInputType type = TextInputType.text, 
+       bool isPassword = false, 
+       String? Function(String?)? validator}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
@@ -269,10 +418,16 @@ class _RegisterPageState extends State<RegisterPage> {
           enabledBorder: const UnderlineInputBorder(
             borderSide: BorderSide(color: Colors.black54),
           ),
+          errorBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.red, width: 2),
+          ),
+          focusedErrorBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.red, width: 2),
+          ),
           border: const UnderlineInputBorder(),
         ),
         onChanged: onChanged,
-        validator: (val) => val!.isEmpty ? "Required" : null,
+        validator: validator,
       ),
     );
   }

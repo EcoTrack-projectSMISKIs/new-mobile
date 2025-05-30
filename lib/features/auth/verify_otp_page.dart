@@ -151,7 +151,7 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
                             onPressed: goToResetPassword,
-                            child: const Text("Next Step", style: TextStyle(fontSize: 16)),
+                            child: const Text("Next Step", style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                         ),
                         const SizedBox(height: 10),
