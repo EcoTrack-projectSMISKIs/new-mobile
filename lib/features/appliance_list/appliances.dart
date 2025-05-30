@@ -1,10 +1,15 @@
 import 'dart:convert';
+import 'package:ecotrack_mobile/features/appliance_list/delete_appliance.dart';
+import 'package:ecotrack_mobile/features/appliance_list/edit_appliance.dart';
+import 'package:ecotrack_mobile/widgets/error_modal.dart';
+import 'package:ecotrack_mobile/widgets/success_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:ecotrack_mobile/widgets/navbar.dart';
 import 'package:ecotrack_mobile/features/appliance_list/appliance_details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_slidable/flutter_slidable.dart'; // Add this dependency
 
 class AppliancesPage extends StatefulWidget {
   const AppliancesPage({Key? key}) : super(key: key);
@@ -18,6 +23,7 @@ class _AppliancesPageState extends State<AppliancesPage> {
   Map<String, bool> _plugStates = {};
   bool _isLoading = true;
   String? userId;
+  String? _openSlidableId;
 
   // Icon variants map - same as in name_plug.dart
   final Map<String, List<String>> applianceIconVariants = {
@@ -189,67 +195,117 @@ class _AppliancesPageState extends State<AppliancesPage> {
     }
   }
 
- Future<void> togglePlugPower(String plugId, bool turnOn) async {
-  final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString('token');
+  Future<void> togglePlugPower(String plugId, bool turnOn) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
 
-  if (token == null || token.isEmpty) {
-    print('Token not found');
-    return;
-  }
-
-  // Optimistically update UI if widget still mounted
-  if (mounted) {
-    setState(() {
-      _plugStates[plugId] = turnOn;
-    });
-  }
-
-  final endpoint = turnOn ? 'on' : 'off';
-  final url =
-      Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId/$endpoint');
-
-  try {
-    final response = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      print('Plug $plugId turned ${turnOn ? 'on' : 'off'}');
-
-      await Future.delayed(const Duration(seconds: 3)); // Give device time to update
-
-      final confirmed = await fetchPlugSwitch(plugId);
-
-      if (mounted) {
-        setState(() {
-          _plugStates[plugId] = confirmed;
-        });
-      }
-    } else {
-      print('Failed to toggle plug. Status code: ${response.statusCode}');
-
-      if (mounted) {
-        setState(() {
-          _plugStates[plugId] = !turnOn; // revert UI toggle on failure
-        });
-      }
+    if (token == null || token.isEmpty) {
+      print('Token not found');
+      return;
     }
-  } catch (e) {
-    print('Error toggling plug: $e');
 
+    // Optimistically update UI if widget still mounted
     if (mounted) {
       setState(() {
-        _plugStates[plugId] = !turnOn; // revert UI toggle on error
+        _plugStates[plugId] = turnOn;
       });
     }
+
+    final endpoint = turnOn ? 'on' : 'off';
+    final url =
+        Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId/$endpoint');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        print('Plug $plugId turned ${turnOn ? 'on' : 'off'}');
+
+        await Future.delayed(
+            const Duration(seconds: 3)); // Give device time to update
+
+        final confirmed = await fetchPlugSwitch(plugId);
+
+        if (mounted) {
+          setState(() {
+            _plugStates[plugId] = confirmed;
+          });
+        }
+      } else {
+        print('Failed to toggle plug. Status code: ${response.statusCode}');
+
+        if (mounted) {
+          setState(() {
+            _plugStates[plugId] = !turnOn; // revert UI toggle on failure
+          });
+        }
+      }
+    } catch (e) {
+      print('Error toggling plug: $e');
+
+      if (mounted) {
+        setState(() {
+          _plugStates[plugId] = !turnOn; // revert UI toggle on error
+        });
+      }
+    }
   }
+
+Future<void> _editAppliance(Map<String, dynamic> plug) async {
+  await EditApplianceService.showEditApplianceModal(
+    context: context,
+    plug: plug,
+    onSuccess: () async {
+      // Set loading state
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Refresh the appliances list
+        await _loadUserIdAndFetchPlugs();
+      } catch (e) {
+        // Handle error if needed
+        debugPrint('Error refreshing: $e');
+      } finally {
+        // Always set loading to false when done
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    },
+  );
 }
 
+
+// Method to handle deleting an appliance
+  // Method to handle plug removal from local state
+  void _removePlugFromState(String plugId) {
+    _plugs.removeWhere((plug) => plug['_id'] == plugId);
+    _plugStates.remove(plugId);
+  }
+
+    // Method to trigger UI update
+  void _updateUI() {
+    setState(() {});
+  }
+
+  // Method to call when you want to delete an appliance
+  void _onDeletePressed(String plugId, String plugName) {
+    ApplianceDeleteHelper.deleteAppliance(
+      context: context,
+      plugId: plugId,
+      plugName: plugName,
+      onPlugRemoved: _removePlugFromState,
+      onStateUpdate: _updateUI,
+    );
+  }
 
   // Helper method to get the correct icon path based on iconKey and iconVariant
   String _getIconPath(String? iconKey, int? iconVariant) {
@@ -298,12 +354,14 @@ class _AppliancesPageState extends State<AppliancesPage> {
 
                             return _buildApplianceCard(
                               context,
+                              plug: plug,
                               title: plug['name'] ?? 'Unnamed Plug',
                               subtitle:
                                   '${plug['applianceName'] ?? 'Unknown Appliance'}\nTotal: ${plug['energy']?['Total']?.toStringAsFixed(3) ?? '0.000'} kWh',
                               iconPath: _getIconPath(
                                   plug['iconKey'], plug['iconVariant']),
                               isOn: isOn,
+                              //isDisabled: plug['disabled'] ?? false,
                               onToggle: (value) async {
                                 setState(() {
                                   _plugStates[plug['_id']] = value;
@@ -336,69 +394,109 @@ class _AppliancesPageState extends State<AppliancesPage> {
 
   Widget _buildApplianceCard(
     BuildContext context, {
+    required Map<String, dynamic> plug,
     required String title,
     required String subtitle,
     required String iconPath,
     required bool isOn,
     required Function(bool) onToggle,
+    //required bool isDisabled,
     Function()? onTap,
     Color toggleColor = Colors.green,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: InkWell(
-        onTap: onTap,
-        child: Card(
-          elevation: 0,
-          color: Colors.white,
-          margin: EdgeInsets.zero,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Image.asset(
-                  iconPath,
-                  width: 50,
-                  height: 50,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Icon(Icons.electrical_services, size: 50),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle.split('\n')[0],
-                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                      ),
-                      Text(
-                        subtitle.split('\n')[1],
-                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                      ),
-                    ],
+      child: Slidable(
+        key: Key(plug['_id']),
+        closeOnScroll: true,
+        endActionPane: ActionPane(
+          motion: const DrawerMotion(),
+          extentRatio: 0.4,
+          children: [
+            CustomSlidableAction(
+              onPressed: (context) => _editAppliance(plug),
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              child: const Icon(Icons.edit, size: 32),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                bottomLeft: Radius.circular(20),
+              ),
+            ),
+            CustomSlidableAction(
+              onPressed: (context) => _onDeletePressed(
+                plug['_id'],
+                plug['name'] ?? 'Unnamed Plug',
+              ),
+              backgroundColor: Colors.red,
+              child: const Icon(Icons.delete, size: 32, color: Colors.white),
+              borderRadius: const BorderRadius.only(
+                topRight: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
+          ],
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: Card(
+            elevation: 0,
+            color: Colors.white,
+            margin: EdgeInsets.zero,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Image.asset(
+                    iconPath,
+                    width: 50,
+                    height: 50,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.electrical_services, size: 50),
                   ),
-                ),
-                Switch(
-                  value: isOn,
-                  onChanged: onToggle,
-                  activeColor: toggleColor,
-                  activeTrackColor: toggleColor.withOpacity(0.5),
-                  inactiveThumbColor: Colors.grey[300],
-                  inactiveTrackColor: Colors.grey[400],
-                ),
-              ],
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: Colors.black,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle.split('\n')[0],
+                          style:
+                              TextStyle(fontSize: 16, color: Colors.grey[600]),
+                        ),
+                        Text(
+                          subtitle.split('\n')[1],
+                          style:
+                              TextStyle(fontSize: 16, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => onToggle(!isOn),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      child: Switch.adaptive(
+                        value: isOn,
+                        activeColor: toggleColor,
+                        onChanged:
+                            null, // Disable the switch's built-in onChanged
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
