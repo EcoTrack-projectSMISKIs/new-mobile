@@ -1,3 +1,4 @@
+import 'package:ecotrack_mobile/features/add_smartplug/smartplug_connection_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:ecotrack_mobile/widgets/navbar.dart';
 import 'package:ecotrack_mobile/features/appliance_list/appliances.dart';
@@ -7,6 +8,7 @@ import 'dart:convert';
 import 'package:ecotrack_mobile/widgets/success_modal.dart';
 import 'package:ecotrack_mobile/widgets/error_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math' as math;
 
 ///
 class NamePlugPage extends StatefulWidget {
@@ -140,14 +142,114 @@ class _NamePlugPageState extends State<NamePlugPage> {
     super.dispose();
   }
 
+  Future<ConfigurationResult> configureMqtt(
+      String plugIp, String plugId) async {
+    final mqttHost = dotenv.env['MQTT_HOST'] ?? '';
+    final mqttUser = dotenv.env['MQTT_USER'] ?? '';
+    final mqttPassword = dotenv.env['MQTT_PASSWORD'] ?? '';
+
+    if ([mqttHost, mqttUser, mqttPassword].any((v) => v.isEmpty)) {
+      return ConfigurationResult.error(
+        "Missing MQTT Config",
+        "Check your .env file for MQTT_HOST, USER, PASSWORD.",
+      );
+    }
+
+    final mqttTopic = 'ecotrack/plug/$plugId';
+
+    final backlogCommands = [
+      'MqttHost ${Uri.encodeComponent(mqttHost)}',
+      'MqttPort 1883',
+      'MqttUser ${Uri.encodeComponent(mqttUser)}',
+      'MqttPassword ${Uri.encodeComponent(mqttPassword)}',
+      'Topic ${Uri.encodeComponent(mqttTopic)}',
+      'Restart 1',
+    ];
+
+    final mqttUrl =
+        'http://$plugIp/cm?cmnd=Backlog%20${backlogCommands.join('%3B')}';
+
+    try {
+      final mqttResp = await http.get(Uri.parse(mqttUrl)).timeout(
+            const Duration(seconds: 5),
+          );
+
+      if (mqttResp.statusCode == 200) {
+        // Delay for reboot (e.g., 5 seconds)
+        await Future.delayed(const Duration(seconds: 5));
+
+        return ConfigurationResult.success(
+          "Plug Configured",
+          "The plug has been connected to MQTT.\nNew IP: $plugIp",
+          data: {'plugIp': plugIp},
+        );
+      } else {
+        return ConfigurationResult.error(
+          "MQTT Config Failed",
+          "Failed to configure MQTT. Status ${mqttResp.statusCode}.",
+        );
+      }
+    } catch (e) {
+      return ConfigurationResult.error(
+        "MQTT Config Error",
+        "Error configuring MQTT: $e",
+      );
+    }
+  }
+
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: Card(
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12))),
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: CircularProgressIndicator(color: Color(0xFF109717)),
+          ),
+        ),
+      ),
+    );
+  }
+
+// class LoadingPainter extends CustomPainter {
+//   @override
+//   void paint(Canvas canvas, Size size) {
+//     final paint = Paint()
+//       ..color = Color(0xFF4CAF50)
+//       ..style = PaintingStyle.fill;
+//     final center = Offset(size.width / 2, size.height / 2);
+//     final radius = size.width / 2;
+//     for (int i = 0; i < 8; i++) {
+//       final angle = i * 45 * (math.pi / 180);
+//       final x = center.dx + (radius - 7) * math.cos(angle);
+//       final y = center.dy + (radius - 7) * math.sin(angle);
+//       canvas.drawCircle(Offset(x, y), 3.0, paint);
+//     }
+//   }
+
+//   @override
+//   bool shouldRepaint(CustomPainter oldDelegate) => false;
+// }
+
   void _saveDevice() async {
+    // Show loading indicator
+    _showLoadingDialog();
+
+    // Wait 3 seconds (simulate loading)
+    await Future.delayed(const Duration(seconds: 1));
+
     final String plugName =
         _plugNameController.text.isEmpty ? _plugName : _plugNameController.text;
+
     final String applianceName = (_selectedApplianceName == 'Others')
         ? _customApplianceNameController.text
         : _selectedApplianceName ?? 'Unknown';
-    final String iconKey = _getIconKey(applianceName);
 
+    final String iconKey = _getIconKey(applianceName);
     final String url =
         '${dotenv.env['BASE_URL']}/api/plugs/${widget.plugId}/rename';
 
@@ -174,27 +276,24 @@ class _NamePlugPageState extends State<NamePlugPage> {
         body: jsonEncode({
           'name': plugName,
           'applianceName': applianceName,
-          'iconKey': iconKey, // Send category key
-          'iconVariant': _selectedIconVariant, // Send specific variant index
+          'iconKey': iconKey,
+          'iconVariant': _selectedIconVariant,
         }),
       );
 
       if (response.statusCode == 200) {
-        // Configure MQTT Topic via Tasmota REST API
-        try {
-          final String newIp = widget.plugIp;
-          final mqttTopic = 'ecotrack/plug/${widget.plugId}';
+        // Configure MQTT after successfully renaming the plug
+        final result = await configureMqtt(widget.plugIp, widget.plugId);
 
-          // Set Topic
-          final topicUrl =
-              'http://$newIp/cm?cmnd=Topic%20${Uri.encodeComponent(mqttTopic)}';
-          final topicResp = await http.get(Uri.parse(topicUrl));
-
-          if (topicResp.statusCode != 200) {
-            debugPrint('⚠️ Setting MQTT topic failed: ${topicResp.body}');
-          }
-        } catch (e) {
-          debugPrint('⚠️ Error sending MQTT topic: $e');
+        if (!result.success) {
+          debugPrint('⚠️ MQTT configuration failed: ${result.message}');
+          context.showCustomErrorModal(
+            message: result.message,
+            onButtonPressed: () {
+              Navigator.pop(context);
+            },
+          );
+          return;
         }
 
         // ✅ Show success modal
@@ -211,7 +310,8 @@ class _NamePlugPageState extends State<NamePlugPage> {
           },
         );
       } else {
-        debugPrint('❌ Rename failed: ${response.statusCode} - ${response.body}');
+        debugPrint(
+            '❌ Rename failed: ${response.statusCode} - ${response.body}');
         context.showCustomErrorModal(
           message: 'Could not add the device. Please try again.',
           onButtonPressed: () {
@@ -447,7 +547,8 @@ class _NamePlugPageState extends State<NamePlugPage> {
                                   child: Text(appliance),
                                 ))
                             .toList(),
-                        onChanged: _onApplianceChanged, // Use the consistent method
+                        onChanged:
+                            _onApplianceChanged, // Use the consistent method
                       ),
                       if (_selectedApplianceName == 'Others')
                         Padding(

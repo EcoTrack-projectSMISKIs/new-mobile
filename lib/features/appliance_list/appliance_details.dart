@@ -1,3 +1,4 @@
+import 'package:ecotrack_mobile/features/appliance_list/plug_history.dart';
 import 'package:ecotrack_mobile/widgets/navbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -5,6 +6,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
+
+// Import your PlugHistoryPage here
+// import 'plug_history.dart';
 
 class ApplianceDetails extends StatefulWidget {
   final String plugId;
@@ -63,14 +67,15 @@ class _ApplianceDetailsState extends State<ApplianceDetails> {
         setState(() {
           // recommendation = data['recommendation'] ?? "No recommendation found.";
           //recommendation ="${data['recommendation']}\n\nUsage: ${data['yesterdayUsage']}Wh\nNote: ${data['message']}";
-           recommendation = "Based on your yesterday's usage (${data['yesterdayUsage']}kWh), ${data['recommendation']}"; // not sure if kwh or w
+          recommendation =
+              "Based on your yesterday's usage (${data['yesterdayUsage']}kWh), ${data['recommendation']}"; // not sure if kwh or w
         });
       } else {
         setState(() {
           print(
               'AI Recommendation Response not working / does not have yesterday data: ${response.statusCode}');
           recommendation =
-              "We’re still collecting data to give you smart energy-saving tips. Keep using the app and connect your appliances so we can tailor advice just for you.";
+              "We're still collecting data to give you smart energy-saving tips. Keep using the app and connect your appliances so we can tailor advice just for you.";
         });
       }
     } catch (e) {
@@ -374,8 +379,46 @@ class _ApplianceDetailsState extends State<ApplianceDetails> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 30),
-                        // IMPROVED LIVE METRICS SECTION
+                        const SizedBox(height: 20),
+                        // // ENERGY CONSUMPTION HISTORY LINK
+                        // Padding(
+                        //   padding: const EdgeInsets.symmetric(horizontal: 16),
+                        //   child: Align(
+                        //     alignment: Alignment.centerRight,
+                        //     child: GestureDetector(
+                        //       onTap: () {
+                        //         Navigator.push(
+                        //           context,
+                        //           MaterialPageRoute(
+                        //             builder: (context) =>
+                        //                 PlugHistoryPage(plugId: widget.plugId),
+                        //           ),
+                        //         );
+                        //       },
+                        //       child: Row(
+                        //         mainAxisSize: MainAxisSize.min,
+                        //         children: [
+                        //           Icon(
+                        //             Icons.history,
+                        //             size: 14,
+                        //             color: Colors.grey[600],
+                        //           ),
+                        //           const SizedBox(width: 4),
+                        //           Text(
+                        //             'View History  ',
+                        //             style: TextStyle(
+                        //               fontSize: 12,
+                        //               color: Colors.grey[600],
+                        //               fontWeight: FontWeight.w400,
+                        //             ),
+                        //           ),
+                        //         ],
+                        //       ),
+                        //     ),
+                        //   ),
+                        // ),
+                        //const SizedBox(height: 5),
+// IMPROVED LIVE METRICS SECTION
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Container(
@@ -534,11 +577,45 @@ class _ApplianceDetailsState extends State<ApplianceDetails> {
                                     ),
                                   ],
                                 ),
+                                Align(
+                                  alignment: Alignment.center,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => PlugHistoryPage(
+                                              plugId: widget.plugId),
+                                        ),
+                                      );
+                                    },
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.history,
+                                          size: 20,
+                                          color: Colors.grey[600],
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'View Energy Consumption History',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey[600],
+                                            fontWeight: FontWeight.w400,
+                                            decoration: TextDecoration.underline, 
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 10),
                         // Text("AI Recommendation",
                         //     style: TextStyle(
                         //       fontSize: 20,

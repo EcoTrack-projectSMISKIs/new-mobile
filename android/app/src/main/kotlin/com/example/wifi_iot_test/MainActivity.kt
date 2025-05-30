@@ -15,9 +15,17 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            if (call.method == "bindNetwork") {
-                val internetRequired = call.argument<Boolean>("internetRequired") ?: true
-                bindNetwork(result, internetRequired)
+            when (call.method) {
+                "bindNetwork" -> {
+                    val internetRequired = call.argument<Boolean>("internetRequired") ?: true
+                    bindNetwork(result, internetRequired)
+                }
+                "unbindNetwork" -> {
+                    unbindNetwork(result)
+                }
+                else -> {
+                    result.notImplemented()
+                }
             }
         }
     }
@@ -45,5 +53,16 @@ class MainActivity : FlutterActivity() {
             Log.e("WiFiBinding", "❌ Android version < M; not supported.")
         }
         result.success(false)
+    }
+
+    private fun unbindNetwork(result: MethodChannel.Result) {
+        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val success = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            connectivityManager.bindProcessToNetwork(null)
+        } else {
+            false
+        }
+        Log.i("WiFiBinding", "🔄 Unbound network. Success: $success")
+        result.success(success)
     }
 }

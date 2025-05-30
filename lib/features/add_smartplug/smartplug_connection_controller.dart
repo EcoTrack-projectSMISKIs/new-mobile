@@ -11,7 +11,7 @@ import 'package:flutter/services.dart';
 
 class PlugConfigurationController {
   final List<String> _PLUG_AP_SSIDS = ['ecotrack-plug', 'tasmota'];
-  
+
   // Callbacks for UI updates
   Function(String message)? onSuccess;
   Function(String title, String message, {VoidCallback? onRetry})? onError;
@@ -28,14 +28,15 @@ class PlugConfigurationController {
   Future<List<WiFiAccessPoint>> scanHomeNetworks() async {
     try {
       await WiFiScan.instance.startScan();
-      List<WiFiAccessPoint> networks = await WiFiScan.instance.getScannedResults();
-      
+      List<WiFiAccessPoint> networks =
+          await WiFiScan.instance.getScannedResults();
+
       // Filter out plug AP SSIDs
       networks = networks
           .where((network) => !_PLUG_AP_SSIDS.any((plugSsid) =>
               network.ssid.toLowerCase().contains(plugSsid.toLowerCase())))
           .toList();
-      
+
       return networks;
     } catch (e) {
       print('Error scanning home networks: $e');
@@ -67,7 +68,8 @@ class PlugConfigurationController {
     throw TimeoutException("No internet connection after plug configuration.");
   }
 
-  Future<String?> retryRegisterPlug(String newIp, String userId, {int retries = 5}) async {
+  Future<String?> retryRegisterPlug(String newIp, String userId,
+      {int retries = 5}) async {
     for (int attempt = 0; attempt < retries; attempt++) {
       try {
         print("🔄 Attempt ${attempt + 1} to register plug...");
@@ -79,14 +81,16 @@ class PlugConfigurationController {
           print("✅ Plug successfully registered on attempt ${attempt + 1}");
           return plugId;
         } else {
-          print("⚠️ Attempt ${attempt + 1} failed but no exception was thrown.");
+          print(
+              "⚠️ Attempt ${attempt + 1} failed but no exception was thrown.");
         }
       } catch (e) {
         print("⚠️ Attempt ${attempt + 1} threw an exception: $e");
       }
 
       if (attempt < retries - 1) {
-        print("🔁 Retrying registerPlugToUser in ${5 + attempt * 2} seconds...");
+        print(
+            "🔁 Retrying registerPlugToUser in ${5 + attempt * 2} seconds...");
       } else {
         print("❌ All retry attempts failed.");
       }
@@ -94,7 +98,8 @@ class PlugConfigurationController {
     return null;
   }
 
-  Future<bool> waitForDnsReady(String host, {int retries = 5, Duration delay = const Duration(seconds: 2)}) async {
+  Future<bool> waitForDnsReady(String host,
+      {int retries = 5, Duration delay = const Duration(seconds: 2)}) async {
     for (int i = 0; i < retries; i++) {
       try {
         final result = await InternetAddress.lookup(host);
@@ -152,6 +157,18 @@ class PlugConfigurationController {
     }
   }
 
+  Future<bool> unbindNetwork() async {
+    const platform = MethodChannel('com.example.network/bind');
+    try {
+      final bool result = await platform.invokeMethod('unbindNetwork');
+      print('🔄 unbindNetwork result: $result');
+      return result;
+    } on PlatformException catch (e) {
+      print('❌ Failed to unbind network: ${e.message}');
+      return false;
+    }
+  }
+
   Future<bool> bindToWifiNetwork({bool internetRequired = true}) async {
     const platform = MethodChannel('com.example.network/bind');
     try {
@@ -177,7 +194,8 @@ class PlugConfigurationController {
             .get(Uri.parse('http://192.168.4.1/cm?cmnd=STATUS%200'))
             .timeout(const Duration(seconds: 5));
 
-        final match = RegExp(r'"IPAddress":"([\d.]+)"').firstMatch(statusResp.body);
+        final match =
+            RegExp(r'"IPAddress":"([\d.]+)"').firstMatch(statusResp.body);
         final ip = match?.group(1);
 
         if (ip != null && ip != '0.0.0.0') {
@@ -187,7 +205,8 @@ class PlugConfigurationController {
           print("⚠️ Got invalid IP: $ip");
         }
       } catch (_) {
-        print("Plug is out of AP mode or unreachable, trying to scan the subnet...");
+        print(
+            "Plug is out of AP mode or unreachable, trying to scan the subnet...");
       }
 
       await Future.delayed(const Duration(seconds: 3));
@@ -203,153 +222,225 @@ class PlugConfigurationController {
     return newIp;
   }
 
-  Future<ConfigurationResult> configureSmartPlug({
-    required WiFiAccessPoint plugAccessPoint,
-    required String homeWifiSsid,
-    required String homeWifiPassword,
-  }) async {
-    try {
-      onLoading?.call("Configuring plug...");
+Future<ConfigurationResult> configureSmartPlug({
+  required WiFiAccessPoint plugAccessPoint,
+  required String homeWifiSsid,
+  required String homeWifiPassword,
+}) async {
+  try {
+    onLoading?.call("Configuring plug...");
 
-      final encodedSsid = Uri.encodeComponent(homeWifiSsid);
-      final encodedPassword = Uri.encodeComponent(homeWifiPassword);
+    final encodedSsid = Uri.encodeComponent(homeWifiSsid);
+    final encodedPassword = Uri.encodeComponent(homeWifiPassword);
 
-      final wifiCredsUrl = 'http://192.168.4.1/wi?s1=$encodedSsid&p1=$encodedPassword&save';
+    final wifiCredsUrl =
+        'http://192.168.4.1/wi?s1=$encodedSsid&p1=$encodedPassword&save';
 
-      final response = await http.get(Uri.parse(wifiCredsUrl)).timeout(
-        const Duration(seconds: 5),
-      );
-
-      if (response.statusCode != 200) {
-        onLoadingDismiss?.call();
-        return ConfigurationResult.error(
-          "WiFi Configuration Failed",
-          "Plug returned status code ${response.statusCode}.",
+    final response = await http.get(Uri.parse(wifiCredsUrl)).timeout(
+          const Duration(seconds: 5),
         );
-      }
 
-      // Give time for plug to connect to home WiFi
-      await Future.delayed(const Duration(seconds: 10));
-
-      final newIp = await getPlugNewIp();
-
-      if (newIp == null) {
-        onLoadingDismiss?.call();
-        return ConfigurationResult.error(
-          "IP Not Found",
-          "Could not determine plug's new IP after retries and subnet scan. Try again or check your router.",
-        );
-      }
-
-      print("Detected Plug IP: $newIp");
-
-      final mqttConfigResult = await configureMqtt(newIp);
-      if (!mqttConfigResult.success) {
-        onLoadingDismiss?.call();
-        return mqttConfigResult;
-      }
-
+    if (response.statusCode != 200) {
       onLoadingDismiss?.call();
+      return ConfigurationResult.error(
+        "WiFi Configuration Failed",
+        "Plug returned status code ${response.statusCode}.",
+      );
+    }
 
-      // Now handle registration
-      return await registerPlugWithRetry(newIp);
+    // Give time for plug to connect to home WiFi
+    await Future.delayed(const Duration(seconds: 10));
 
-    } catch (e) {
+    final newIp = await getPlugNewIp();
+
+    if (newIp == null) {
       onLoadingDismiss?.call();
-      return ConfigurationResult.error("Configuration Error", "Error: $e");
-    }
-  }
-
-  Future<ConfigurationResult> configureMqtt(String plugIp) async {
-    final mqttHost = dotenv.env['MQTT_HOST'] ?? '';
-    final mqttUser = dotenv.env['MQTT_USER'] ?? '';
-    final mqttPassword = dotenv.env['MQTT_PASSWORD'] ?? '';
-
-    if ([mqttHost, mqttUser, mqttPassword].any((v) => v.isEmpty)) {
       return ConfigurationResult.error(
-        "Missing MQTT Config",
-        "Check your .env file for MQTT_HOST, USER, PASSWORD.",
+        "IP Not Found",
+        "Could not determine plug's new IP after retries and subnet scan. Try again or check your router.",
       );
     }
 
-    final mqttUrl = 'http://$plugIp/cm?cmnd=Backlog%20MqttHost%20${Uri.encodeComponent(mqttHost)}%3BMqttPort%201883%3BMqttUser%20${Uri.encodeComponent(mqttUser)}%3BMqttPassword%20${Uri.encodeComponent(mqttPassword)}%3BRestart%201';
+    print("Detected Plug IP: $newIp");
 
-    try {
-      final mqttResp = await http.get(Uri.parse(mqttUrl)).timeout(
-        const Duration(seconds: 5),
-      );
-
-      if (mqttResp.statusCode == 200) {
-        return ConfigurationResult.success(
-          "Plug Configured",
-          "The plug has been connected to WiFi and MQTT.\nNew IP: $plugIp",
-          data: {'plugIp': plugIp},
-        );
-      } else {
-        return ConfigurationResult.error(
-          "MQTT Config Failed",
-          "Failed to configure MQTT. Status ${mqttResp.statusCode}.",
-        );
-      }
-    } catch (e) {
-      return ConfigurationResult.error(
-        "MQTT Config Error",
-        "Error configuring MQTT: $e",
-      );
+    // Configure the template first
+    final templateResult = await configureTemplate(newIp);
+    if (!templateResult.success) {
+      onLoadingDismiss?.call();
+      return templateResult;
     }
+
+    // Short delay to let the plug settle after template/module change
+    // await Future.delayed(const Duration(seconds: 3));
+
+    // Moved MQTT configuration here at naming plug stage
+    // // Then configure MQTT
+    // final mqttConfigResult = await configureMqtt(newIp);
+    // if (!mqttConfigResult.success) {
+    //   onLoadingDismiss?.call();
+    //   return mqttConfigResult;
+    // }
+
+    onLoadingDismiss?.call();
+
+    // Now handle registration
+    return await registerPlugWithRetry(newIp);
+  } catch (e) {
+    onLoadingDismiss?.call();
+    return ConfigurationResult.error("Configuration Error", "Error: $e");
   }
+}
+
+
+  Future<ConfigurationResult> configureTemplate(String plugIp) async {
+  // Template string must be URI-encoded
+  const templateJson = '{"NAME":"Athom Plug V2","GPIO":[0,0,0,3104,0,32,0,0,224,576,0,0,0,0],"FLAG":0,"BASE":18}';
+  final encodedTemplate = Uri.encodeComponent(templateJson);
+
+  final templateUrl = 'http://$plugIp/cm?cmnd=Template%20$encodedTemplate';
+  final moduleUrl = 'http://$plugIp/cm?cmnd=Module%200';
+
+  try {
+    // Send the Template command
+    final templateResp = await http.get(Uri.parse(templateUrl)).timeout(
+          const Duration(seconds: 5),
+        );
+
+    if (templateResp.statusCode != 200) {
+      return ConfigurationResult.error(
+        "Template Config Failed",
+        "Failed to send template. Status ${templateResp.statusCode}.",
+      );
+    }
+
+    // Send the Module 0 command
+    final moduleResp = await http.get(Uri.parse(moduleUrl)).timeout(
+          const Duration(seconds: 5),
+        );
+
+    if (moduleResp.statusCode != 200) {
+      return ConfigurationResult.error(
+        "Module Config Failed",
+        "Failed to set module to 0. Status ${moduleResp.statusCode}.",
+      );
+    }
+
+    return ConfigurationResult.success(
+      "Template Applied",
+      "The Tasmota template and module were successfully configured.",
+    );
+  } catch (e) {
+    return ConfigurationResult.error(
+      "Template Config Error",
+      "Error applying template: $e",
+    );
+  }
+}
+
+// Moved MQTT configuration at name_plug.dart
+
+  // Future<ConfigurationResult> configureMqtt(String plugIp) async {
+  //   final mqttHost = dotenv.env['MQTT_HOST'] ?? '';
+  //   final mqttUser = dotenv.env['MQTT_USER'] ?? '';
+  //   final mqttPassword = dotenv.env['MQTT_PASSWORD'] ?? '';
+
+  //   if ([mqttHost, mqttUser, mqttPassword].any((v) => v.isEmpty)) {
+  //     return ConfigurationResult.error(
+  //       "Missing MQTT Config",
+  //       "Check your .env file for MQTT_HOST, USER, PASSWORD.",
+  //     );
+  //   }
+
+  //   final mqttUrl =
+  //       'http://$plugIp/cm?cmnd=Backlog%20MqttHost%20${Uri.encodeComponent(mqttHost)}%3BMqttPort%201883%3BMqttUser%20${Uri.encodeComponent(mqttUser)}%3BMqttPassword%20${Uri.encodeComponent(mqttPassword)}%3BRestart%201';
+
+  //   try {
+  //     final mqttResp = await http.get(Uri.parse(mqttUrl)).timeout(
+  //           const Duration(seconds: 5),
+  //         );
+
+  //     if (mqttResp.statusCode == 200) {
+  //       return ConfigurationResult.success(
+  //         "Plug Configured",
+  //         "The plug has been connected to WiFi and MQTT.\nNew IP: $plugIp",
+  //         data: {'plugIp': plugIp},
+  //       );
+  //     } else {
+  //       return ConfigurationResult.error(
+  //         "MQTT Config Failed",
+  //         "Failed to configure MQTT. Status ${mqttResp.statusCode}.",
+  //       );
+  //     }
+  //   } catch (e) {
+  //     return ConfigurationResult.error(
+  //       "MQTT Config Error",
+  //       "Error configuring MQTT: $e",
+  //     );
+  //   }
+  // }
 
   Future<ConfigurationResult> registerPlugWithRetry(String plugIp) async {
-    try {
-      print("wait to connect to home wifi...");
-      await waitForInternetConnection();
+  try {
+    await Future.delayed(Duration(seconds: 8));
+    // Step 1: Unbind from plug's AP network (192.168.4.1) to allow connection to home WiFi
+   await unbindNetwork();
+   print("Unbound from plug's AP network. Waiting to connect to home WiFi...");
 
-      print("Connected to home WiFi. Attempting to bind to the main WiFi network before making the registration request...");
-      final bindSuccess = await bindToWifiNetwork(internetRequired: true);
-      print("Network binding result: $bindSuccess");
+    // Step 2: Wait until device has internet (connected to home WiFi)
+    await waitForInternetConnection();
 
-      if (!bindSuccess) {
-        print("⚠️ Network binding failed, but continuing with registration attempt");
-      }
+    print("Connected to home WiFi. Attempting to bind to main WiFi network with internet...");
 
-      final prefs = await SharedPreferences.getInstance();
-      final userId = prefs.getString('userId');
+    // Step 3: Bind network to WiFi with internet capability before registration
+    final bindSuccess = await bindToWifiNetwork(internetRequired: true);
+    print("Network binding result: $bindSuccess");
 
-      if (userId == null) {
-        return ConfigurationResult.error(
-          "Missing User ID",
-          "You must be logged in to register the plug.",
-        );
-      }
+    if (!bindSuccess) {
+      print("⚠️ Warning: Network binding failed, but continuing with registration.");
+    }
 
-      final newPlugId = await retryRegisterPlug(plugIp, userId);
+    // Step 4: Get userId from preferences for registering the plug
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
 
-      if (newPlugId != null) {
-        return ConfigurationResult.success(
-          "Plug Linked",
-          "The smart plug has been successfully registered to your account.",
-          data: {'plugId': newPlugId, 'plugIp': plugIp},
-        );
-      } else {
-        return ConfigurationResult.error(
-          "Registration Failed",
-          "Could not register the plug with the server. Please try again later or check your internet connection.",
-          canRetry: true,
-          retryData: {'plugIp': plugIp},
-        );
-      }
-    } catch (e) {
+    if (userId == null) {
       return ConfigurationResult.error(
-        "Network Error",
-        "Failed to connect to the internet after plug configuration: $e",
+        "Missing User ID",
+        "You must be logged in to register the plug.",
+      );
+    }
+
+    // Step 5: Attempt to register the plug with retry logic
+    final newPlugId = await retryRegisterPlug(plugIp, userId);
+
+    if (newPlugId != null) {
+      return ConfigurationResult.success(
+        "Plug Linked",
+        "The smart plug has been successfully registered to your account.",
+        data: {'plugId': newPlugId, 'plugIp': plugIp},
+      );
+    } else {
+      return ConfigurationResult.error(
+        "Registration Failed",
+        "Could not register the plug with the server. Please try again later or check your internet connection.",
         canRetry: true,
         retryData: {'plugIp': plugIp},
       );
     }
+  } catch (e) {
+    // Catch any network or unexpected errors
+    return ConfigurationResult.error(
+      "Network Error",
+      "Failed to connect to the internet after plug configuration: $e",
+      canRetry: true,
+      retryData: {'plugIp': plugIp},
+    );
   }
+}
 
   Future<ConfigurationResult> retryRegistration(String plugIp) async {
     try {
+      
       await waitForInternetConnection();
       await bindToWifiNetwork(internetRequired: true);
 
@@ -406,7 +497,8 @@ class ConfigurationResult {
   String? get plugId => data?['plugId'] as String?;
   String? get plugIp => data?['plugIp'] as String?;
 
-  factory ConfigurationResult.success(String title, String message, {Map<String, dynamic>? data}) {
+  factory ConfigurationResult.success(String title, String message,
+      {Map<String, dynamic>? data}) {
     return ConfigurationResult._(
       success: true,
       title: title,
@@ -414,7 +506,8 @@ class ConfigurationResult {
       data: data,
     );
   }
-  factory ConfigurationResult.error(String title, String message, {bool canRetry = false, Map<String, dynamic>? retryData}) {
+  factory ConfigurationResult.error(String title, String message,
+      {bool canRetry = false, Map<String, dynamic>? retryData}) {
     return ConfigurationResult._(
       success: false,
       title: title,
