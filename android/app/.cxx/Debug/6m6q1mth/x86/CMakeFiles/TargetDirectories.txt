@@ -1,0 +1,2 @@
+C:/Users/lagua/OneDrive/Desktop/this_new/new-mobile/android/app/.cxx/Debug/6m6q1mth/x86/CMakeFiles/edit_cache.dir
+C:/Users/lagua/OneDrive/Desktop/this_new/new-mobile/android/app/.cxx/Debug/6m6q1mth/x86/CMakeFiles/rebuild_cache.dir

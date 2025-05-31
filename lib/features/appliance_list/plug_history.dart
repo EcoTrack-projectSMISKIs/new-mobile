@@ -15,16 +15,23 @@ class PlugHistoryPage extends StatefulWidget {
   State<PlugHistoryPage> createState() => _PlugHistoryPageState();
 }
 
+enum TimeRange {
+  yesterday('yesterday', 'Yesterday', Icons.today_rounded),
+  week('week', 'This Week', Icons.date_range_rounded),
+  month('month', 'This Month', Icons.calendar_month_rounded),
+  year('year', 'This Year', Icons.calendar_today_rounded);
 
-
-// ===========================================================
+  const TimeRange(this.value, this.label, this.icon);
+  final String value;
+  final String label;
+  final IconData icon;
+}
 
 class _PlugHistoryPageState extends State<PlugHistoryPage> {
-
   List<ChartData> chartData = [];
   bool isLoading = true;
   String? errorMessage;
-
+  TimeRange selectedRange = TimeRange.yesterday;
 
   @override
   void initState() {
@@ -34,12 +41,17 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
 
   Future<void> fetchChartData() async {
     try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
 
       final response = await http.get(
         Uri.parse(
-            '${dotenv.env['BASE_URL']}/api/plugs/${widget.plugId}/chart'),
+            '${dotenv.env['BASE_URL']}/api/plugs/${widget.plugId}/chart?range=${selectedRange.value}'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -48,23 +60,44 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-
+        
+        print('=== API Response for ${selectedRange.value} ===');
+        print('Full response: ${json.encode(data)}');
+        
         List<ChartData> tempData = [];
 
-        if (data['chart'] != null) {
-          for (int i = 0; i < data['chart'].length; i++) {
-            var item = data['chart'][i];
+        if (data['chart'] != null && data['chart'] is List) {
+          final chartArray = data['chart'] as List;
+          print('Chart data length: ${chartArray.length}');
+          
+          for (int i = 0; i < chartArray.length; i++) {
+            var item = chartArray[i];
+            
+            print('Item $i: ${json.encode(item)}');
 
-            // Create a timestamp for each data point (assuming hourly intervals)
-            DateTime baseDate = DateTime.parse(item['date']);
-            DateTime timestamp = baseDate.add(Duration(hours: i));
+            // Parse timestamp
+            DateTime timestamp;
+            try {
+              timestamp = DateTime.parse(item['timestamp']);
+            } catch (e) {
+              print('Error parsing timestamp: ${item['timestamp']}, using current time');
+              timestamp = DateTime.now().subtract(Duration(hours: chartArray.length - i));
+            }
+
+            // Extract current and previous values
+            double currentValue = (item['current'] ?? 0).toDouble();
+            double previousValue = (item['previous'] ?? 0).toDouble();
+
+            print('Extracted values - Current: $currentValue, Previous: $previousValue');
 
             tempData.add(ChartData(
               timestamp,
-              (item['yesterday'] ?? 0).toDouble(),
-              (item['today'] ?? 0).toDouble(),
+              previousValue,
+              currentValue,
             ));
           }
+        } else {
+          print('No chart data in response or invalid format');
         }
 
         setState(() {
@@ -72,16 +105,83 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
           isLoading = false;
         });
       } else {
+        print('API Error: ${response.statusCode} - ${response.body}');
         setState(() {
           errorMessage = 'Failed to load data: ${response.statusCode}';
           isLoading = false;
         });
       }
     } catch (e) {
+      print('Exception in fetchChartData: $e');
       setState(() {
         errorMessage = 'Error: $e';
         isLoading = false;
       });
+    }
+  }
+
+  String _getComparisonLabel() {
+    switch (selectedRange) {
+      case TimeRange.yesterday:
+        return 'Day Before Yesterday';
+      case TimeRange.week:
+        return 'Last Week';
+      case TimeRange.month:
+        return 'Last Month';
+      case TimeRange.year:
+        return 'Last Year';
+    }
+  }
+
+  String _getCurrentLabel() {
+    switch (selectedRange) {
+      case TimeRange.yesterday:
+        return 'Yesterday';
+      case TimeRange.week:
+        return 'This Week';
+      case TimeRange.month:
+        return 'This Month';
+      case TimeRange.year:
+        return 'This Year';
+    }
+  }
+
+  DateFormat _getDateFormat() {
+    switch (selectedRange) {
+      case TimeRange.yesterday:
+        return DateFormat.Hm(); // Hour:Minute
+      case TimeRange.week:
+        return DateFormat.E(); // Day of week
+      case TimeRange.month:
+        return DateFormat.MMMd(); // Month Day
+      case TimeRange.year:
+        return DateFormat.MMM(); // Month
+    }
+  }
+
+  DateTimeIntervalType _getIntervalType() {
+    switch (selectedRange) {
+      case TimeRange.yesterday:
+        return DateTimeIntervalType.hours;
+      case TimeRange.week:
+        return DateTimeIntervalType.days;
+      case TimeRange.month:
+        return DateTimeIntervalType.days;
+      case TimeRange.year:
+        return DateTimeIntervalType.months;
+    }
+  }
+
+  double _getInterval() {
+    switch (selectedRange) {
+      case TimeRange.yesterday:
+        return 2; // Every 2 hours
+      case TimeRange.week:
+        return 1; // Every day
+      case TimeRange.month:
+        return 5; // Every 5 days
+      case TimeRange.year:
+        return 1; // Every month
     }
   }
 
@@ -117,13 +217,7 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
             ),
             child: IconButton(
               icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-              onPressed: () {
-                setState(() {
-                  isLoading = true;
-                  errorMessage = null;
-                });
-                fetchChartData();
-              },
+              onPressed: fetchChartData,
             ),
           ),
         ],
@@ -137,6 +231,8 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
               const SizedBox(height: 8),
               _buildHeaderCard(),
               const SizedBox(height: 24),
+              _buildRangeSelector(),
+              const SizedBox(height: 20),
               _buildStatsCards(),
               const SizedBox(height: 24),
               Expanded(
@@ -198,7 +294,7 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Historical Data Analysis',
+                  '${selectedRange.label} Analysis',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 14,
@@ -213,29 +309,97 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
     );
   }
 
+  Widget _buildRangeSelector() {
+    return Container(
+      height: 60,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: TimeRange.values.length,
+        itemBuilder: (context, index) {
+          final range = TimeRange.values[index];
+          final isSelected = selectedRange == range;
+          
+          return Container(
+            margin: EdgeInsets.only(right: index < TimeRange.values.length - 1 ? 12 : 0),
+            child: GestureDetector(
+              onTap: () {
+                if (selectedRange != range) {
+                  setState(() {
+                    selectedRange = range;
+                  });
+                  fetchChartData();
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF667EEA) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFF667EEA) : const Color(0xFFE5E7EB),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    if (isSelected)
+                      BoxShadow(
+                        color: const Color(0xFF667EEA).withOpacity(0.3),
+                        spreadRadius: 0,
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      range.icon,
+                      color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      range.label,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildStatsCards() {
     if (chartData.isEmpty) return const SizedBox.shrink();
 
-    double todayTotal = chartData.fold(0, (sum, item) => sum + item.todayConsumption);
-    double yesterdayTotal = chartData.fold(0, (sum, item) => sum + item.yesterdayConsumption);
-    double difference = todayTotal - yesterdayTotal;
+    double currentTotal = chartData.fold(0, (sum, item) => sum + item.todayConsumption);
+    double previousTotal = chartData.fold(0, (sum, item) => sum + item.yesterdayConsumption);
+    double difference = currentTotal - previousTotal;
     bool isIncrease = difference > 0;
 
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
-            'Today',
-            '${todayTotal.toStringAsFixed(2)} kWh',
-            Icons.today_rounded,
+            _getCurrentLabel(),
+            '${currentTotal.toStringAsFixed(2)} kWh',
+            Icons.trending_up_rounded,
             const Color(0xFF10B981),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
-            'Yesterday',
-            '${yesterdayTotal.toStringAsFixed(2)} kWh',
+            _getComparisonLabel(),
+            '${previousTotal.toStringAsFixed(2)} kWh',
             Icons.history_rounded,
             const Color(0xFF6B7280),
           ),
@@ -383,13 +547,7 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () {
-                setState(() {
-                  isLoading = true;
-                  errorMessage = null;
-                });
-                fetchChartData();
-              },
+              onPressed: fetchChartData,
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Try Again'),
               style: ElevatedButton.styleFrom(
@@ -435,10 +593,10 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Energy consumption data will appear here once available',
+            Text(
+              'Energy consumption data for ${selectedRange.label.toLowerCase()} will appear here once available',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 14,
                 color: Color(0xFF9CA3AF),
                 fontWeight: FontWeight.w400,
@@ -461,9 +619,9 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
               fontWeight: FontWeight.w500,
             ),
           ),
-          dateFormat: DateFormat.Hm(),
-          intervalType: DateTimeIntervalType.hours,
-          interval: 2,
+          dateFormat: _getDateFormat(),
+          intervalType: _getIntervalType(),
+          interval: _getInterval(),
           labelStyle: const TextStyle(
             color: Color(0xFF9CA3AF),
             fontSize: 11,
@@ -491,7 +649,7 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
           majorGridLines: const MajorGridLines(color: Color(0xFFF3F4F6), width: 1),
         ),
         title: ChartTitle(
-          text: 'Energy Consumption Comparison',
+          text: 'Energy Consumption Comparison - ${selectedRange.label}',
           textStyle: const TextStyle(
             color: Color(0xFF1F2937),
             fontSize: 16,
@@ -519,7 +677,7 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
             dataSource: chartData,
             xValueMapper: (ChartData data, _) => data.timestamp,
             yValueMapper: (ChartData data, _) => data.todayConsumption,
-            name: 'Today',
+            name: _getCurrentLabel(),
             color: const Color(0xFF667EEA),
             width: 3,
             markerSettings: const MarkerSettings(
@@ -536,7 +694,7 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
             dataSource: chartData,
             xValueMapper: (ChartData data, _) => data.timestamp,
             yValueMapper: (ChartData data, _) => data.yesterdayConsumption,
-            name: 'Yesterday',
+            name: _getComparisonLabel(),
             color: const Color(0xFF9CA3AF),
             width: 3,
             dashArray: const <double>[5, 3],
@@ -555,6 +713,12 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
     );
   }
 }
+
+// class ChartData {
+//   final DateTime timestamp;
+//   final double yesterdayConsumption;
+//   final double todayConsumption;
+// }
 
 class ChartData {
   final DateTime timestamp;

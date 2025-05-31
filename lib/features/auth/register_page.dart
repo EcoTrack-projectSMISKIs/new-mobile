@@ -23,6 +23,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
   bool isLoading = false;
 
+  // Error states for server-side validation
+  String? usernameError;
+  String? phoneError;
+  String? emailError;
+
   // Input validation methods
   String? _validateName(String? value) {
     if (value == null || value.trim().isEmpty) {
@@ -42,6 +47,11 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   String? _validateUsername(String? value) {
+    // Check server-side error first
+    if (usernameError != null) {
+      return usernameError;
+    }
+    
     if (value == null || value.trim().isEmpty) {
       return "Username is required";
     }
@@ -63,6 +73,11 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   String? _validatePhone(String? value) {
+    // Check server-side error first
+    if (phoneError != null) {
+      return phoneError;
+    }
+    
     if (value == null || value.trim().isEmpty) {
       return "Phone number is required";
     }
@@ -82,6 +97,11 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   String? _validateEmail(String? value) {
+    // Check server-side error first
+    if (emailError != null) {
+      return emailError;
+    }
+    
     if (value == null || value.trim().isEmpty) {
       return "Email is required";
     }
@@ -125,8 +145,23 @@ class _RegisterPageState extends State<RegisterPage> {
     return null;
   }
 
+  // Clear server-side errors when user starts typing
+  void _clearServerErrors() {
+    if (usernameError != null || phoneError != null || emailError != null) {
+      setState(() {
+        usernameError = null;
+        phoneError = null;
+        emailError = null;
+      });
+    }
+  }
+
   Future<void> register() async {
+    // Clear any previous server-side errors
     setState(() {
+      usernameError = null;
+      phoneError = null;
+      emailError = null;
       isLoading = true;
     });
 
@@ -154,7 +189,7 @@ class _RegisterPageState extends State<RegisterPage> {
       if (response.statusCode == 201) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(resData['msg'] ?? "Registered successfully")),
+          SnackBar(content: Text(resData['message'] ?? "Registered successfully")),
         );
         Navigator.push(
           context,
@@ -163,9 +198,31 @@ class _RegisterPageState extends State<RegisterPage> {
         );
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(resData['msg'] ?? "Registration failed")),
-        );
+        
+        // Handle specific field errors
+        if (response.statusCode == 409 && resData['errors'] != null) {
+          // Handle field-specific errors from server (HTTP 409 with errors object)
+          Map<String, dynamic> errors = resData['errors'];
+          setState(() {
+            if (errors.containsKey('username')) {
+              usernameError = errors['username'];
+            }
+            if (errors.containsKey('phone')) {
+              phoneError = errors['phone'];
+            }
+            if (errors.containsKey('email')) {
+              emailError = errors['email'];
+            }
+          });
+          
+          // Re-validate the form to show the errors
+          _formKey.currentState!.validate();
+        } else {
+          // Show general error message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(resData['message'] ?? "Registration failed")),
+          );
+        }
       }
     } catch (error) {
       print("Error: $error");
@@ -233,29 +290,47 @@ class _RegisterPageState extends State<RegisterPage> {
                     children: [
                       _buildField(
                         "Full Name", 
-                        (val) => name = val,
+                        (val) {
+                          name = val;
+                          _clearServerErrors();
+                        },
                         validator: _validateName,
                       ),
                       _buildField(
                         "Username", 
-                        (val) => username = val,
+                        (val) {
+                          username = val;
+                          _clearServerErrors();
+                        },
                         validator: _validateUsername,
+                        hasError: usernameError != null,
                       ),
                       _buildField(
                         "Phone", 
-                        (val) => phone = val,
+                        (val) {
+                          phone = val;
+                          _clearServerErrors();
+                        },
                         type: TextInputType.phone,
                         validator: _validatePhone,
+                        hasError: phoneError != null,
                       ),
                       _buildField(
                         "Email", 
-                        (val) => email = val,
+                        (val) {
+                          email = val;
+                          _clearServerErrors();
+                        },
                         type: TextInputType.emailAddress,
                         validator: _validateEmail,
+                        hasError: emailError != null,
                       ),
                       _buildField(
                         "Password", 
-                        (val) => password = val,
+                        (val) {
+                          password = val;
+                          _clearServerErrors();
+                        },
                         isPassword: true,
                         validator: _validatePassword,
                       ),
@@ -403,7 +478,8 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget _buildField(String label, Function(String) onChanged,
       {TextInputType type = TextInputType.text, 
        bool isPassword = false, 
-       String? Function(String?)? validator}) {
+       String? Function(String?)? validator,
+       bool hasError = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
@@ -411,12 +487,19 @@ class _RegisterPageState extends State<RegisterPage> {
         obscureText: isPassword,
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(color: Colors.black),
-          focusedBorder: const UnderlineInputBorder(
-            borderSide: BorderSide(color: Colors.green, width: 2),
+          labelStyle: TextStyle(
+            color: hasError ? Colors.red : Colors.black,
           ),
-          enabledBorder: const UnderlineInputBorder(
-            borderSide: BorderSide(color: Colors.black54),
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(
+              color: hasError ? Colors.red : Colors.green, 
+              width: 2
+            ),
+          ),
+          enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(
+              color: hasError ? Colors.red : Colors.black54,
+            ),
           ),
           errorBorder: const UnderlineInputBorder(
             borderSide: BorderSide(color: Colors.red, width: 2),
