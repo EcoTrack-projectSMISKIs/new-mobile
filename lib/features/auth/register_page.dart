@@ -428,41 +428,32 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        children: [
-                          const Text(
-                              "By continuing, you agree to have read and understood Ecotrack's "),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          const TermsPolicyPage()));
-                            },
-                            child: const Text("Terms Of Service",
-                                style: TextStyle(
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.w600)),
-                          ),
-                          const Text(" and "),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          const TermsPolicyPage()));
-                            },
-                            child: const Text("Privacy Policy",
-                                style: TextStyle(
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.w600)),
-                          ),
-                          const Text("."),
-                        ],
-                      )
+Wrap(
+  alignment: WrapAlignment.center,
+  children: [
+    const Text(
+      "By continuing, you agree to have read and understood Ecotrack's ",
+    ),
+    GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const TermsPolicyPage(),
+          ),
+        );
+      },
+      child: const Text(
+        "Terms Of Service and Privacy Policy.",
+        style: TextStyle(
+          color: Colors.green,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  ],
+)
+
                     ],
                   ),
                 ),

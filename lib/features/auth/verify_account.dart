@@ -8,7 +8,13 @@ import 'package:ecotrack_mobile/features/auth/login_page.dart';
 
 class VerifyAccountPage extends StatefulWidget {
   final String email;
-  const VerifyAccountPage({super.key, required this.email});
+  final bool showResendToast;
+
+  const VerifyAccountPage({
+    Key? key,
+    required this.email,
+    this.showResendToast = false,
+  }) : super(key: key);
 
   @override
   State<VerifyAccountPage> createState() => _VerifyAccountPageState();
@@ -18,15 +24,29 @@ class _VerifyAccountPageState extends State<VerifyAccountPage> {
   String otp = '';
   int _secondsRemaining = 0;
   Timer? _resendTimer;
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.showResendToast) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("OTP has been resent to your email.")),
+        );
+      });
+    }
+  }
 
   Future<void> resendOtp() async {
-    final url = Uri.parse(
-        '${dotenv.env['BASE_URL']}/api/auth/mobile/resend-verification');
+    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/resend-verification');
     final response = await http.post(
       url,
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({"email": widget.email}),
     );
+
     final resData = jsonDecode(response.body);
 
     if (response.statusCode == 200) {
@@ -50,14 +70,24 @@ class _VerifyAccountPageState extends State<VerifyAccountPage> {
   }
 
   Future<void> verifyOtp() async {
-    final url =
-        Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/verify-otp');
+    if (otp.length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Enter valid 6-digit OTP")),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/verify-otp');
     final response = await http.post(
       url,
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({"email": widget.email, "otp": otp}),
     );
+
     final resData = jsonDecode(response.body);
+    setState(() => isLoading = false);
 
     if (response.statusCode == 200) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -65,10 +95,7 @@ class _VerifyAccountPageState extends State<VerifyAccountPage> {
       );
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) =>
-              const LoginPage(), // AFTER VERFICATION, NAVIGATE TO LOGIN
-        ),
+        MaterialPageRoute(builder: (context) => const LoginPage()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -83,6 +110,7 @@ class _VerifyAccountPageState extends State<VerifyAccountPage> {
     super.dispose();
   }
 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
@@ -103,7 +131,7 @@ class _VerifyAccountPageState extends State<VerifyAccountPage> {
                 children: [
                   const SizedBox(height: 40),
                   const Text(
-                    "Enter One-Time-PIN code",
+                    "Enter One-Time PIN",
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
@@ -147,36 +175,43 @@ class _VerifyAccountPageState extends State<VerifyAccountPage> {
                             inactiveColor: Colors.grey.shade300,
                           ),
                         ),
-                        const SizedBox(height: 12),
-
-                        // Moved "Next Step" button above
+                        const SizedBox(height: 16),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30)),
+                                borderRadius: BorderRadius.circular(30),
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
-                            onPressed: verifyOtp,
-                            child: const Text("Next Step",
-                                style: TextStyle(
-                                    fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+                            onPressed: isLoading ? null : verifyOtp,
+                            child: isLoading
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    "Next Step",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                           ),
                         ),
-
-                        const SizedBox(height: 20),
-
-                        // "Did not receive the OTP code?" text on top of resend button
+                        const SizedBox(height: 24),
                         const Text(
                           "Did not receive the OTP code?",
                           style: TextStyle(color: Colors.black54),
                         ),
-
-                       // const SizedBox(height: 8),
-
-                        // Resend OTP or timer
+                        const SizedBox(height: 8),
                         _secondsRemaining > 0
                             ? Text(
                                 "Resend after ${_secondsRemaining}s",
@@ -189,8 +224,6 @@ class _VerifyAccountPageState extends State<VerifyAccountPage> {
                                   style: TextStyle(color: Colors.green),
                                 ),
                               ),
-
-                        const SizedBox(height: 16),
                       ],
                     ),
                   ),

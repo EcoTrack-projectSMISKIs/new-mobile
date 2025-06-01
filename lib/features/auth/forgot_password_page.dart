@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-
+// 1
+// forgot pass page
+// spinner okay
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
 
@@ -14,37 +16,47 @@ class ForgotPasswordPage extends StatefulWidget {
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _formKey = GlobalKey<FormState>();
   String email = '';
+  // new  added
+  bool isLoading = false;
 
-  Future<void> requestOtp() async {
-    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/request-otp');
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"email": email}),
-    );
+Future<void> requestOtp() async {
+  setState(() => isLoading = true);
 
-    final resData = jsonDecode(response.body);
-    if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resData['msg'] ?? "Check your email.")));
-      Navigator.push(context, MaterialPageRoute(builder: (context) => VerifyOtpPage(email: email)));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resData['msg'] ?? "Failed to send OTP")));
-    }
+  final url = Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/request-otp');
+  final response = await http.post(
+    url,
+    headers: {"Content-Type": "application/json"},
+    body: jsonEncode({"email": email}),
+  );
+
+  final resData = jsonDecode(response.body);
+  setState(() => isLoading = false);
+
+  if (response.statusCode == 200) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resData['msg'] ?? "Check your email.")));
+    Navigator.push(context, MaterialPageRoute(builder: (context) => VerifyOtpPage(email: email)));
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resData['msg'] ?? "Failed to send OTP")));
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          Positioned(
-            top: 50,
-            left: 10,
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.green),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
+Positioned(
+  top: 50,
+  left: 10,
+  child: IconButton(
+    icon: const Icon(Icons.arrow_back, color: Colors.green),
+    onPressed: () {
+      if (!isLoading) Navigator.pop(context);
+    },
+  ),
+),
+
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -95,7 +107,23 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                   requestOtp();
                                 }
                               },
-                              child: const Text("Send OTP", style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+child: isLoading
+    ? const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(
+          color: Colors.white,
+          strokeWidth: 2,
+        ),
+      )
+    : const Text(
+        "Send OTP",
+        style: TextStyle(
+          fontSize: 16,
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
                             ),
                           )
                         ],

@@ -53,12 +53,49 @@ class _TermsPolicyPageState extends State<TermsPolicyPage> {
                 "Updates - Changes will appear in the app.",
               ]),
               const SizedBox(height: 20),
-
-
-
-
-
-
+              Row(
+                children: [
+                  Checkbox(
+                    value: isAgreed,
+                    onChanged: (val) {
+                      setState(() {
+                        isAgreed = val ?? false;
+                      });
+                    },
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'I have read and agree to the Terms of Service and Privacy Policy.',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: isAgreed
+                      ? () {
+                          // Navigate to next screen or pop
+                          Navigator.pop(context);
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade700,
+                    disabledBackgroundColor: Colors.grey.shade400,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text(
+                    "Continue",
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
