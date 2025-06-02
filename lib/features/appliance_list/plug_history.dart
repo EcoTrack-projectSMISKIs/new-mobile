@@ -39,86 +39,86 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
     fetchChartData();
   }
 
-  Future<void> fetchChartData() async {
-    try {
-      setState(() {
-        isLoading = true;
-        errorMessage = null;
-      });
+Future<void> fetchChartData() async {
+  try {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
 
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
 
-      final response = await http.get(
-        Uri.parse(
-            '${dotenv.env['BASE_URL']}/api/plugs/${widget.plugId}/chart?range=${selectedRange.value}'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+    final response = await http.get(
+      Uri.parse(
+          '${dotenv.env['BASE_URL']}/api/plugs/${widget.plugId}/chart?range=${selectedRange.value}'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        print('=== API Response for ${selectedRange.value} ===');
-        print('Full response: ${json.encode(data)}');
-        
-        List<ChartData> tempData = [];
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
 
-        if (data['chart'] != null && data['chart'] is List) {
-          final chartArray = data['chart'] as List;
-          print('Chart data length: ${chartArray.length}');
-          
-          for (int i = 0; i < chartArray.length; i++) {
-            var item = chartArray[i];
-            
-            print('Item $i: ${json.encode(item)}');
+      print('=== API Response for ${selectedRange.value} ===');
+      print('Full response: ${json.encode(data)}');
 
-            // Parse timestamp
-            DateTime timestamp;
-            try {
-              timestamp = DateTime.parse(item['timestamp']);
-            } catch (e) {
-              print('Error parsing timestamp: ${item['timestamp']}, using current time');
-              timestamp = DateTime.now().subtract(Duration(hours: chartArray.length - i));
-            }
+      List<ChartData> tempData = [];
 
-            // Extract current and previous values
-            double currentValue = (item['current'] ?? 0).toDouble();
-            double previousValue = (item['previous'] ?? 0).toDouble();
+      if (data['chart'] != null && data['chart'] is List) {
+        final chartArray = data['chart'] as List;
+        print('Chart data length: ${chartArray.length}');
 
-            print('Extracted values - Current: $currentValue, Previous: $previousValue');
+        for (int i = 0; i < chartArray.length; i++) {
+          var item = chartArray[i];
 
-            tempData.add(ChartData(
-              timestamp,
-              previousValue,
-              currentValue,
-            ));
+          print('Item $i: ${json.encode(item)}');
+
+          // Parse timestamp (renamed to 'date')
+          DateTime timestamp;
+          try {
+            timestamp = DateTime.parse(item['date']);
+          } catch (e) {
+            print('Error parsing date: ${item['date']}, using current time');
+            timestamp = DateTime.now().subtract(Duration(days: chartArray.length - i));
           }
-        } else {
-          print('No chart data in response or invalid format');
-        }
 
-        setState(() {
-          chartData = tempData;
-          isLoading = false;
-        });
+          // Extract current and previous values (renamed keys)
+          double currentValue = double.tryParse(item['today'].toString()) ?? 0.0;
+          double previousValue = double.tryParse(item['yesterday'].toString()) ?? 0.0;
+
+          print('Extracted values - Current: $currentValue, Previous: $previousValue');
+
+          tempData.add(ChartData(
+            timestamp,
+            previousValue,
+            currentValue,
+          ));
+        }
       } else {
-        print('API Error: ${response.statusCode} - ${response.body}');
-        setState(() {
-          errorMessage = 'Failed to load data: ${response.statusCode}';
-          isLoading = false;
-        });
+        print('No chart data in response or invalid format');
       }
-    } catch (e) {
-      print('Exception in fetchChartData: $e');
+
       setState(() {
-        errorMessage = 'Error: $e';
+        chartData = tempData;
+        isLoading = false;
+      });
+    } else {
+      print('API Error: ${response.statusCode} - ${response.body}');
+      setState(() {
+        errorMessage = 'Failed to load data: ${response.statusCode}';
         isLoading = false;
       });
     }
+  } catch (e) {
+    print('Exception in fetchChartData: $e');
+    setState(() {
+      errorMessage = 'Error: $e';
+      isLoading = false;
+    });
   }
+}
 
   String _getComparisonLabel() {
     switch (selectedRange) {
@@ -322,14 +322,16 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
           return Container(
             margin: EdgeInsets.only(right: index < TimeRange.values.length - 1 ? 12 : 0),
             child: GestureDetector(
-              onTap: () {
-                if (selectedRange != range) {
-                  setState(() {
-                    selectedRange = range;
-                  });
-                  fetchChartData();
-                }
-              },
+onTap: () {
+  if (selectedRange != range) {
+    setState(() {
+      isLoading = true;
+      selectedRange = range;
+      chartData = [];
+    });
+    fetchChartData();
+  }
+},
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
