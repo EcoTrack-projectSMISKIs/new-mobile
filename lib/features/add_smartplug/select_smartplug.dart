@@ -68,21 +68,35 @@ class _SelectSmartPlugsScreenState extends State<SelectSmartPlugsScreen>
     });
     _scanAnimationController.repeat();
 
+    // Start the minimum 3-second timer
+    final minimumLoadingTime = Future.delayed(Duration(seconds: 3));
+    
     try {
-      await WiFiScan.instance.startScan();
-      final results = await WiFiScan.instance.getScannedResults();
-      setState(() {
-        _accessPoints = results
-            .where((ap) => _PLUG_AP_SSIDS
-                .any((s) => ap.ssid.toLowerCase().contains(s.toLowerCase())))
-            .toList();
-      });
+      // Start the actual WiFi scan
+      final scanFuture = _performWiFiScan();
+      
+      // Wait for both the minimum loading time AND the scan to complete
+      await Future.wait([minimumLoadingTime, scanFuture]);
+      
     } catch (e) {
       print("Scan error: $e");
+      // Still wait for the minimum time even if there's an error
+      await minimumLoadingTime;
     } finally {
       _scanAnimationController.stop();
       setState(() => isScanning = false);
     }
+  }
+
+  Future<void> _performWiFiScan() async {
+    await WiFiScan.instance.startScan();
+    final results = await WiFiScan.instance.getScannedResults();
+    setState(() {
+      _accessPoints = results
+          .where((ap) => _PLUG_AP_SSIDS
+              .any((s) => ap.ssid.toLowerCase().contains(s.toLowerCase())))
+          .toList();
+    });
   }
 
   Future<bool> bindToWiFiNetwork({required bool internetRequired}) async {
@@ -173,7 +187,7 @@ class _SelectSmartPlugsScreenState extends State<SelectSmartPlugsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFE8E0F5),
+      backgroundColor: Color(0xFFE7F5E8),
       body: SafeArea(
         child: Padding(
           padding: EdgeInsets.all(24.0),

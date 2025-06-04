@@ -34,10 +34,10 @@ class _SplashScreenState extends State<SplashScreen> {
             Image.asset('assets/lottie/logo.png', width: 120), // use your logo here
             const SizedBox(height: 32),
             const Text(
-              'ecotrack',
+              'EcoTrack',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 24,
+                fontSize: 30, //24
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.2,
               ),

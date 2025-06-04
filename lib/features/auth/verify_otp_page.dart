@@ -18,9 +18,10 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
   String otp = '';
   int _secondsRemaining = 0;
   Timer? _resendTimer;
+  bool isLoading = false;
 
   Future<void> resendOtp() async {
-    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/resend-verification');
+    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/resend-reset-password-otp');
     final response = await http.post(
       url,
       headers: {"Content-Type": "application/json"},
@@ -49,8 +50,27 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
     }
   }
 
-  void goToResetPassword() {
-    if (otp.length == 6) {
+  Future<void> verifyOtp() async {
+    if (otp.length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Enter valid 6-digit OTP")),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/verify-forgot-otp');
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"email": widget.email, "otp": otp}),
+    );
+
+    final resData = jsonDecode(response.body);
+    setState(() => isLoading = false);
+
+    if (response.statusCode == 200) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -59,7 +79,7 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enter valid 6-digit OTP")),
+        SnackBar(content: Text(resData['message'] ?? "Invalid OTP")),
       );
     }
   }
@@ -95,9 +115,9 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
                     style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Text(
+                  const Text(
                     "We just sent an OTP code to your email",
-                    style: const TextStyle(color: Colors.black54),
+                    style: TextStyle(color: Colors.black54),
                   ),
                   Text(
                     widget.email,
@@ -135,30 +155,54 @@ class _VerifyOtpPageState extends State<VerifyOtpPage> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        _secondsRemaining > 0
-                            ? Text("Resend after ${_secondsRemaining}s", style: const TextStyle(color: Colors.black45))
-                            : TextButton(
-                                onPressed: resendOtp,
-                                child: const Text("Resend OTP", style: TextStyle(color: Colors.green)),
-                              ),
-                        const SizedBox(height: 16),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
+                            onPressed: isLoading ? null : verifyOtp,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
-                            onPressed: goToResetPassword,
-                            child: const Text("Next Step", style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+                            child: isLoading
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    "Next Step",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 16),
                         const Text(
                           "Did not receive the OTP code?",
                           style: TextStyle(color: Colors.black54),
                         ),
+                        const SizedBox(height: 8),
+                        _secondsRemaining > 0
+                            ? Text(
+                                "Resend after ${_secondsRemaining}s",
+                                style: const TextStyle(color: Colors.black45),
+                              )
+                            : TextButton(
+                                onPressed: resendOtp,
+                                child: const Text(
+                                  "Resend OTP",
+                                  style: TextStyle(color: Colors.green),
+                                ),
+                              ),
                       ],
                     ),
                   ),

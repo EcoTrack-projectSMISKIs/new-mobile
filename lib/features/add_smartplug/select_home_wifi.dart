@@ -68,19 +68,19 @@ void initState() {
             // Top section with back button
             Padding(
               padding: EdgeInsets.all(12.0),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icon(
-                      Icons.arrow_back_ios,
-                      color: Color(0xFF109717),
-                      size: 24,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            //   child: Row(
+            //     children: [
+            //       IconButton(
+            //         onPressed: () => Navigator.pop(context),
+            //         icon: Icon(
+            //           Icons.arrow_back_ios,
+            //           color: Color(0xFF109717),
+            //           size: 24,
+            //         ),
+            //       ),
+            //     ],
+            //   ),
+             ),
             
             // Main content
             Expanded(
@@ -108,10 +108,10 @@ void initState() {
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        bottom: false,
-        child: CustomBottomNavBar(selectedIndex: 2),
-      ),
+      // bottomNavigationBar: SafeArea(
+      //   bottom: false,
+      //   child: CustomBottomNavBar(selectedIndex: 2),
+      // ),
     );
   }
 
@@ -559,10 +559,10 @@ void initState() {
                                           ),
                                           SizedBox(width: 8),
                                           Text(
-                                            'Joining...',
+                                            'Join.',
                                             style: TextStyle(
                                               color: Color(0xFF4B3FF2),
-                                              fontSize: 18,
+                                              fontSize: 14,
                                               fontWeight: FontWeight.w600,
                                               fontFamily: "Gotham",
                                             ),

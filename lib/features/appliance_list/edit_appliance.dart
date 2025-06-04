@@ -16,11 +16,8 @@ class EditApplianceService {
     // Controllers for the edit modal
     final TextEditingController editPlugNameController =
         TextEditingController(text: plug['name'] ?? 'Plug 1');
-    final TextEditingController editCustomApplianceController =
-        TextEditingController();
-
+      
     // State variables for the modal
-    String? selectedApplianceName = plug['applianceName'];
     String selectedIconKey = plug['iconKey'] ?? 'default';
     int selectedIconVariant = plug['iconVariant'] ?? 0;
 
@@ -36,6 +33,16 @@ class EditApplianceService {
       'TV',
       'Others',
     ];
+
+    String? selectedApplianceName =
+        applianceNames.contains(plug['applianceName'])
+            ? plug['applianceName']
+            : 'Others';
+
+    final TextEditingController editCustomApplianceController =
+        TextEditingController(
+            text:
+                selectedApplianceName == 'Others' ? plug['applianceName'] : '');
 
     final Map<String, List<String>> applianceIconVariants = {
       'aircon': [
@@ -207,6 +214,14 @@ class EditApplianceService {
       );
     }
 
+    // Check if the form is valid
+    bool isFormValid() {
+      if (selectedApplianceName == 'Others') {
+        return editCustomApplianceController.text.trim().isNotEmpty;
+      }
+      return true; // If not "Others", always valid
+    }
+
     // Save edited device
     Future<void> saveEditedDevice() async {
       // Show loading indicator
@@ -260,7 +275,7 @@ class EditApplianceService {
 
         if (response.statusCode == 200) {
           Navigator.pop(context); // Close modal
-          
+
           context.showCustomSuccessModal(
             message: 'Device updated successfully!',
             onButtonPressed: () {
@@ -269,7 +284,8 @@ class EditApplianceService {
             },
           );
         } else {
-          debugPrint('❌ Update failed: ${response.statusCode} - ${response.body}');
+          debugPrint(
+              '❌ Update failed: ${response.statusCode} - ${response.body}');
           context.showCustomErrorModal(
             message: 'Could not update the device. Please try again.',
             onButtonPressed: () {
@@ -279,7 +295,8 @@ class EditApplianceService {
         }
       } catch (e) {
         Navigator.pop(context); // Close loading dialog
-        _showErrorModal(context, 'Something went wrong. Please check your internet connection.');
+        _showErrorModal(context,
+            'Something went wrong. Please check your internet connection.');
       }
     }
 
@@ -463,6 +480,10 @@ class EditApplianceService {
                                     padding: const EdgeInsets.only(top: 15),
                                     child: TextField(
                                       controller: editCustomApplianceController,
+                                      onChanged: (value) {
+                                        // Update the UI when text changes
+                                        setModalState(() {});
+                                      },
                                       decoration: InputDecoration(
                                         hintText: 'Enter custom appliance name',
                                         hintStyle: const TextStyle(
@@ -512,21 +533,25 @@ class EditApplianceService {
 
                           const SizedBox(height: 30),
 
-                          // Save button
+                          // Save button - disabled when form is invalid
                           ElevatedButton(
-                            onPressed: saveEditedDevice,
+                            onPressed: isFormValid() ? saveEditedDevice : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
+                              backgroundColor: isFormValid() 
+                                  ? Colors.green 
+                                  : Colors.grey.shade400,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(30),
                               ),
                               minimumSize: const Size(double.infinity, 55),
                             ),
-                            child: const Text(
+                            child: Text(
                               'Update Device',
                               style: TextStyle(
                                 fontSize: 18,
-                                color: Colors.white,
+                                color: isFormValid() 
+                                    ? Colors.white 
+                                    : Colors.grey.shade600,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -562,7 +587,8 @@ class EditApplianceService {
   }
 
   // Helper method to show success modal
-  static void _showSuccessModal(BuildContext context, String message, VoidCallback onSuccess) {
+  static void _showSuccessModal(
+      BuildContext context, String message, VoidCallback onSuccess) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

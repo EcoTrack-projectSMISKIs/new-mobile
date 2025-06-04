@@ -16,7 +16,7 @@ class NewsAndUpdates extends StatefulWidget {
 class _NewsAndUpdatesState extends State<NewsAndUpdates> {
   List<dynamic> announcements = [];
   List<dynamic> updates = [];
-  bool isLoading = true; // loading state
+  bool _isRefreshing = false;
 
   static final String apiUrl =
       '${dotenv.env['BASE_URL']}/api/news?status=published';
@@ -28,29 +28,27 @@ class _NewsAndUpdatesState extends State<NewsAndUpdates> {
   }
 
   Future<void> fetchNews() async {
-    if (!mounted) return;
-    setState(() {
-      isLoading = true;
-    });
-
-    final stopwatch = Stopwatch()..start();
-
     try {
       final response = await http.get(Uri.parse(apiUrl));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (!mounted) return;
         setState(() {
-          announcements = data
-              .where((item) =>
-                  item['category'] == 'brownout' ||
-                  item['category'] == 'maintenance')
-              .toList();
-          updates = data
-              .where((item) =>
-                  item['category'] != 'brownout' &&
-                  item['category'] != 'maintenance')
-              .toList();
+          announcements =
+              data
+                  .where(
+                    (item) =>
+                        item['category'] == 'brownout' ||
+                        item['category'] == 'maintenance',
+                  )
+                  .toList();
+          updates =
+              data
+                  .where(
+                    (item) =>
+                        item['category'] != 'brownout' &&
+                        item['category'] != 'maintenance',
+                  )
+                  .toList();
         });
       } else {
         throw Exception("Failed to load news");
@@ -58,25 +56,31 @@ class _NewsAndUpdatesState extends State<NewsAndUpdates> {
     } catch (e) {
       print("Error fetching news: $e");
     }
+  }
 
-    // Ensure loading spinner shows at least 3 seconds
-    final elapsed = stopwatch.elapsedMilliseconds;
-    if (elapsed < 3000) {
-      await Future.delayed(Duration(milliseconds: 3000 - elapsed));
-    }
-
-    if (!mounted) return;
+  Future<void> _handleRefresh() async {
+    if (_isRefreshing) return;
+    
     setState(() {
-      isLoading = false;
+      _isRefreshing = true;
+    });
+
+    // Wait for minimum 3 seconds
+    await Future.wait([
+      fetchNews(),
+      Future.delayed(const Duration(seconds: 3)),
+    ]);
+
+    setState(() {
+      _isRefreshing = false;
     });
   }
 
   // Vertical card for Updates
   Widget buildNewsCard(dynamic news) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 1,
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: InkWell(
@@ -89,35 +93,45 @@ class _NewsAndUpdatesState extends State<NewsAndUpdates> {
           );
         },
         child: Padding(
-          padding: const EdgeInsets.all(2),
+          padding: const EdgeInsets.all(8),
           child: Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: CachedNetworkImage(
-                  imageUrl: news['image'] ?? '',
-                  width: 120,
-                  height: 100,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    width: 100,
-                    height: 100,
-                    color: Colors.grey[500],
-                    child: const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2)),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    width: 100,
-                    height: 100,
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.broken_image,
-                        size: 60, color: Colors.grey),
+              // 🌟 Image Container
+              Container(
+                width: 100,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: CachedNetworkImage(
+                    imageUrl: news['image'] ?? '',
+                    fit: BoxFit.cover,
+                    placeholder:
+                        (context, url) => Container(
+                          color: Colors.grey[300],
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                    errorWidget:
+                        (context, url, error) => Container(
+                          color: Colors.grey[200],
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 60,
+                            color: Colors.grey,
+                          ),
+                        ),
                   ),
                 ),
               ),
               const SizedBox(width: 15),
               Expanded(
                 child: Column(
+                
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -127,12 +141,10 @@ class _NewsAndUpdatesState extends State<NewsAndUpdates> {
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
-                      maxLines: 2,
+                      maxLines: 25,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(
-                      height: 40,
-                    ),
+                    const SizedBox(height: 12),
                     Text(
                       news['createdAt'] != null
                           ? news['createdAt'].toString().substring(0, 10)
@@ -154,10 +166,9 @@ class _NewsAndUpdatesState extends State<NewsAndUpdates> {
     return Container(
       width: 250,
       child: Card(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        elevation: 1,
+        color: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 0.5,
         margin: const EdgeInsets.symmetric(horizontal: 8),
         child: InkWell(
           onTap: () {
@@ -171,24 +182,43 @@ class _NewsAndUpdatesState extends State<NewsAndUpdates> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Image
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(16)),
-                child: CachedNetworkImage(
-                  imageUrl: news['image'] ?? '',
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    height: 150,
-                    color: Colors.grey[300],
-                    child: const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2)),
+              // 🌟 MAIN Image Container
+              Center(
+                child: Container(
+                  height: 165,
+                  width: 213,
+                  margin: const EdgeInsets.only(top: 8),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(16),
+                      bottom: Radius.circular(50), // 🎯 bottom radius set here
+                    ),
                   ),
-                  errorWidget: (context, url, error) => Container(
-                    height: 100,
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.broken_image,
-                        size: 40, color: Colors.grey),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                      bottom: Radius.circular(16), // Match rounded look
+                    ),
+                    child: CachedNetworkImage(
+                      imageUrl: news['image'] ?? '',
+                      fit: BoxFit.cover,
+                      placeholder:
+                          (context, url) => Container(
+                            color: Colors.grey[300],
+                            child: const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                      errorWidget:
+                          (context, url, error) => Container(
+                            color: Colors.grey[200],
+                            child: const Icon(
+                              Icons.broken_image,
+                              size: 40,
+                              color: Colors.grey,
+                            ),
+                          ),
+                    ),
                   ),
                 ),
               ),
@@ -202,66 +232,84 @@ class _NewsAndUpdatesState extends State<NewsAndUpdates> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2E8FF),
+      backgroundColor: const Color(0xFFE7F5E8),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
-          child: RefreshIndicator(
-            onRefresh: fetchNews,
-            child: isLoading
-                ? ListView(
-                    // so RefreshIndicator works while loading
-                    children: const [
-                      SizedBox(height: 300),
-                      Center(child: CircularProgressIndicator()),
-                    ],
-                  )
-                : newsArticlesEmpty()
+        child: RefreshIndicator(
+          onRefresh: _handleRefresh,
+          color: const Color(0xFF119718),
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+            child:
+                newsArticlesEmpty() && !_isRefreshing
                     ? ListView(
                         children: const [
-                          SizedBox(height: 300),
-                          Center(child: Text('No news available')),
+                          SizedBox(height: 200),
+                          Center(child: CircularProgressIndicator(color: Color(0xFF119718))),
                         ],
                       )
                     : ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          const SizedBox(height: 10),
-                          const Text(
-                            "Announcements",
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
+                      children: [
+                        const SizedBox(height: 10),
+                        const Text(
+                          "Announcements",
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            height: 180,
-                            child: ListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: announcements.length,
-                              itemBuilder: (context, index) {
-                                return buildHorizontalNewsCard(
-                                    announcements[index]);
-                              },
-                            ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 180,
+                          child: announcements.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    "No announcements available",
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: announcements.length,
+                                  itemBuilder: (context, index) {
+                                    return buildHorizontalNewsCard(
+                                      announcements[index],
+                                    );
+                                  },
+                                ),
+                        ),
+                        const SizedBox(height: 40),
+                        const Text(
+                          "Updates",
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
-                          const SizedBox(height: 40),
-                          const Text(
-                            "Updates",
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                        ),
+                        const SizedBox(height: 10),
+                        if (updates.isEmpty)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: Text(
+                                "No updates available",
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 16,
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 10),
-                          ...updates
-                              .map((news) => buildNewsCard(news))
-                              .toList(),
-                        ],
-                      ),
+                          )
+                        else
+                          ...updates.map((news) => buildNewsCard(news)).toList(),
+                        const SizedBox(height: 20), // Extra space at bottom
+                      ],
+                    ),
           ),
         ),
       ),

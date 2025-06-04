@@ -4,6 +4,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+// 1
+// forgot pass page
+// spinner okay
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
 
@@ -14,9 +17,14 @@ class ForgotPasswordPage extends StatefulWidget {
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _formKey = GlobalKey<FormState>();
   String email = '';
+  // new  added
+  bool isLoading = false;
 
   Future<void> requestOtp() async {
-    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/request-otp');
+    setState(() => isLoading = true);
+
+    final url =
+        Uri.parse('${dotenv.env['BASE_URL']}/api/auth/mobile/request-otp');
     final response = await http.post(
       url,
       headers: {"Content-Type": "application/json"},
@@ -24,11 +32,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     );
 
     final resData = jsonDecode(response.body);
+    setState(() => isLoading = false);
+
     if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resData['msg'] ?? "Check your email.")));
-      Navigator.push(context, MaterialPageRoute(builder: (context) => VerifyOtpPage(email: email)));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(resData['msg'] ?? "Check your email.")));
+      Navigator.push(context,
+          MaterialPageRoute(builder: (context) => VerifyOtpPage(email: email)));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resData['msg'] ?? "Failed to send OTP")));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(resData['msg'] ?? "Failed to send OTP")));
     }
   }
 
@@ -42,7 +55,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             left: 10,
             child: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.green),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                if (!isLoading) Navigator.pop(context);
+              },
             ),
           ),
           Center(
@@ -52,9 +67,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 40),
-                  const Text("Forgot Password", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  const Text("Forgot Password",
+                      style:
+                          TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  const Text("Enter your email to receive a verification code.", style: TextStyle(color: Colors.black54)),
+                  const Text("Enter your email to receive a verification code.",
+                      style: TextStyle(color: Colors.black54)),
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.all(24),
@@ -79,7 +97,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                               border: UnderlineInputBorder(),
                             ),
                             onChanged: (val) => email = val,
-                            validator: (val) => val!.isEmpty ? "Email is required" : null,
+                            validator: (val) =>
+                                val!.isEmpty ? "Email is required" : null,
                           ),
                           const SizedBox(height: 24),
                           SizedBox(
@@ -87,15 +106,33 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
                               ),
                               onPressed: () {
                                 if (_formKey.currentState!.validate()) {
                                   requestOtp();
                                 }
                               },
-                              child: const Text("Send OTP", style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+                              child: isLoading
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text(
+                                      "Send OTP",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                             ),
                           )
                         ],

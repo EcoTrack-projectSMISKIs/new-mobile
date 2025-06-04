@@ -7,6 +7,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'package:ecotrack_mobile/features/auth/verify_account.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
 
@@ -18,13 +20,19 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   String identifier = '';
   String password = '';
-  bool rememberMe = true;
+  // bool rememberMe = true;
   bool obscureText = true;
   bool isLoading = false; // Added loading state
+  // bool otpSent = false;
+
+  String errorMessage = '';
+  bool showVerifyNow = false;
 
   Future<void> login() async {
     setState(() {
-      isLoading = true; // Start loading
+      isLoading = true;
+      errorMessage = '';
+      showVerifyNow = false;
     });
 
     try {
@@ -40,6 +48,7 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       final resData = jsonDecode(response.body);
+
       if (response.statusCode == 200) {
         final token = resData['token'];
         final user = resData['user'];
@@ -59,21 +68,33 @@ class _LoginPageState extends State<LoginPage> {
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const EnergyDashboard(),
-          ),
+          MaterialPageRoute(builder: (context) => const EnergyDashboard()),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(resData['msg'] ?? "Login failed")),
-        );
+        // final message = resData['msg'] ?? "Login failed";
+        final message = resData['msg'] ?? resData['message'] ?? "Login failed";
+
+        if (response.statusCode == 403 &&
+            message.toLowerCase().contains("verify")) {
+          setState(() {
+            errorMessage = message;
+            showVerifyNow = true;
+          });
+        } else {
+          setState(() {
+            errorMessage = message;
+            showVerifyNow = false;
+          });
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("An error occurred. Please try again.")),
-      );
+      setState(() {
+        errorMessage = "An error occurred. Please try again.";
+        showVerifyNow = false;
+      });
     } finally {
       setState(() {
-        isLoading = false; // Stop loading
+        isLoading = false;
       });
     }
   }
@@ -83,8 +104,8 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-          top: false,     // include padding at the top
-          bottom: true, 
+        top: false, // include padding at the top
+        bottom: true,
         child: Center(
           child: SingleChildScrollView(
             child: Padding(
@@ -96,13 +117,15 @@ class _LoginPageState extends State<LoginPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.green, size: 30),
+                      icon: const Icon(Icons.arrow_back,
+                          color: Colors.green, size: 30),
                       padding: EdgeInsets.zero,
                       alignment: Alignment.centerLeft,
                       onPressed: () {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(builder: (_) => const LandingPage()),
+                          MaterialPageRoute(
+                              builder: (_) => const LandingPage()),
                         );
                       },
                     ),
@@ -158,7 +181,8 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                             onChanged: (val) => identifier = val,
-                            validator: (val) => val!.isEmpty ? "Required" : null,
+                            validator: (val) =>
+                                val!.isEmpty ? "Required" : null,
                           ),
                           const SizedBox(height: 24),
                           const Text(
@@ -181,63 +205,69 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  obscureText ? Icons.visibility_off : Icons.visibility,
+                                  obscureText
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
                                   color: Colors.grey,
                                 ),
-                                onPressed: isLoading ? null : () { // Disable when loading
-                                  setState(() {
-                                    obscureText = !obscureText;
-                                  });
-                                },
+                                onPressed: isLoading
+                                    ? null
+                                    : () {
+                                        // Disable when loading
+                                        setState(() {
+                                          obscureText = !obscureText;
+                                        });
+                                      },
                               ),
                             ),
                             onChanged: (val) => password = val,
-                            validator: (val) => val!.isEmpty ? "Required" : null,
+                            validator: (val) =>
+                                val!.isEmpty ? "Required" : null,
                           ),
                           const SizedBox(height: 16),
                           Row(
                             children: [
-                              GestureDetector(
-                                onTap: isLoading ? null : () { // Disable when loading
-                                  setState(() {
-                                    rememberMe = !rememberMe;
-                                  });
-                                },
-                                child: Container(
-                                  width: 24,
-                                  height: 24,
-                                  decoration: BoxDecoration(
-                                    color: rememberMe ? Colors.green : Colors.transparent,
-                                    border: Border.all(
-                                      color: rememberMe ? Colors.green : Colors.grey,
-                                      width: 2,
-                                    ),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: rememberMe
-                                      ? const Icon(
-                                          Icons.check,
-                                          size: 18,
-                                          color: Colors.white,
-                                        )
-                                      : null,
-                                ),
-                              ),
+                              // GestureDetector(
+                              //   onTap: isLoading ? null : () { // Disable when loading
+                              //     setState(() {
+                              //       rememberMe = !rememberMe;
+                              //     });
+                              //   },
+                              //   child: Container(
+                              //     width: 24,
+                              //     height: 24,
+                              //     decoration: BoxDecoration(
+                              //       color: rememberMe ? Colors.green : Colors.transparent,
+                              //       border: Border.all(
+                              //         color: rememberMe ? Colors.green : Colors.grey,
+                              //         width: 2,
+                              //       ),
+                              //       borderRadius: BorderRadius.circular(4),
+                              //     ),
+                              //     child: rememberMe
+                              //         ? const Icon(
+                              //             Icons.check,
+                              //             size: 18,
+                              //             color: Colors.white,
+                              //           )
+                              //         : null,
+                              //   ),
+                              // ),
                               const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: isLoading ? null : () { // Disable when loading
-                                  setState(() {
-                                    rememberMe = !rememberMe;
-                                  });
-                                },
-                                child: const Text(
-                                  "Remember password",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
+                              // GestureDetector(
+                              //   onTap: isLoading ? null : () { // Disable when loading
+                              //     setState(() {
+                              //       rememberMe = !rememberMe;
+                              //     });
+                              //   },
+                              //   child: const Text(
+                              //     "Remember password",
+                              //     style: TextStyle(
+                              //       fontSize: 16,
+                              //       color: Colors.grey,
+                              //     ),
+                              //   ),
+                              // ),
                             ],
                           ),
                           const SizedBox(height: 32),
@@ -246,26 +276,34 @@ class _LoginPageState extends State<LoginPage> {
                             height: 56,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: isLoading ? Colors.grey : Colors.green, // Change color when loading
+                                backgroundColor: isLoading
+                                    ? Colors.grey
+                                    : Colors.green, // Change color when loading
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(30),
                                 ),
                               ),
-                              onPressed: isLoading ? null : () { // Disable when loading
-                                if (_formKey.currentState!.validate()) {
-                                  login();
-                                }
-                              },
+                              onPressed: isLoading
+                                  ? null
+                                  : () {
+                                      // Disable when loading
+                                      if (_formKey.currentState!.validate()) {
+                                        login();
+                                      }
+                                    },
                               child: isLoading
                                   ? const Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         SizedBox(
                                           width: 20,
                                           height: 20,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                    Colors.white),
                                           ),
                                         ),
                                         SizedBox(width: 12),
@@ -292,14 +330,18 @@ class _LoginPageState extends State<LoginPage> {
                           const SizedBox(height: 16),
                           Center(
                             child: TextButton(
-                              onPressed: isLoading ? null : () { // Disable when loading
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const ForgotPasswordPage(),
-                                  ),
-                                );
-                              },
+                              onPressed: isLoading
+                                  ? null
+                                  : () {
+                                      // Disable when loading
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const ForgotPasswordPage(),
+                                        ),
+                                      );
+                                    },
                               child: const Text(
                                 "Forgot password?",
                                 style: TextStyle(
@@ -312,6 +354,100 @@ class _LoginPageState extends State<LoginPage> {
                         ],
                       ),
                     ),
+                    if (errorMessage.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 24),
+                        child: Center(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                errorMessage,
+                                style: const TextStyle(color: Colors.red),
+                                textAlign: TextAlign.center,
+                              ),
+                              if (showVerifyNow)
+                                GestureDetector(
+                                  onTap: isLoading
+                                      ? null
+                                      : () async {
+                                          setState(() {
+                                            isLoading = true;
+                                            // otpSent = false;
+                                          });
+
+                                          final url = Uri.parse(
+                                              '${dotenv.env['BASE_URL']}/api/auth/mobile/lookup-resend-otp');
+                                          final response = await http.post(
+                                            url,
+                                            headers: {
+                                              "Content-Type": "application/json"
+                                            },
+                                            body: jsonEncode(
+                                                {"identifier": identifier}),
+                                          );
+
+                                          final resData =
+                                              jsonDecode(response.body);
+                                          setState(() => isLoading = false);
+
+                                          if (response.statusCode == 200) {
+                                            final email = resData['email'];
+                                            // setState(() => otpSent = true); //  Set success checkmark
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              const SnackBar(
+                                                  content: Text(
+                                                      "OTP has been resent to your email.")),
+                                            );
+
+                                            // Optional: navigate immediately
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    VerifyAccountPage(
+                                                  email: email,
+                                                  showResendToast: false,
+                                                ),
+                                              ),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                  content: Text(resData[
+                                                          'message'] ??
+                                                      "Failed to resend OTP")),
+                                            );
+                                          }
+                                        },
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 4.0),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text(
+                                          "Verify Now",
+                                          style: TextStyle(
+                                            color: Colors.green,
+                                            fontWeight: FontWeight.bold,
+                                            decoration:
+                                                TextDecoration.underline,
+                                          ),
+                                        ),
+                                        // if (otpSent) ...[
+                                        //   const SizedBox(width: 6),
+                                        //   const Icon(Icons.check_circle, color: Colors.green, size: 18),
+                                        // ]
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

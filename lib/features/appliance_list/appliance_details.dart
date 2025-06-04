@@ -7,8 +7,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Import your PlugHistoryPage here
-// import 'plug_history.dart';
+
 
 class ApplianceDetails extends StatefulWidget {
   final String plugId;

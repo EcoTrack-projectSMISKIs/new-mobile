@@ -211,10 +211,10 @@ class _EnergyDashboardState extends State<EnergyDashboard>
                       ),
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                        // decoration: BoxDecoration(
+                        //   color: Colors.white.withOpacity(0.2),
+                        //   borderRadius: BorderRadius.circular(16),
+                        // ),
                         child: const Icon(
                           Icons.bolt,
                           color: Colors.white,
@@ -366,7 +366,7 @@ class _EnergyDashboardState extends State<EnergyDashboard>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Icon(icon, color: const Color(0xFF0D8013), size: 24),
-              const Icon(Icons.trending_up, color: Color(0xFF10B981), size: 16),
+              //const Icon(Icons.trending_up, color: Color(0xFF10B981), size: 16),
             ],
           ),
           const SizedBox(height: 8),
@@ -397,7 +397,7 @@ class _EnergyDashboardState extends State<EnergyDashboard>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF119718)),
             ),
             SizedBox(height: 16),
             Text('Loading energy data...'),

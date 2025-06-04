@@ -15,16 +15,23 @@ class PlugHistoryPage extends StatefulWidget {
   State<PlugHistoryPage> createState() => _PlugHistoryPageState();
 }
 
+enum TimeRange {
+  yesterday('yesterday', 'Yesterday', Icons.today_rounded),
+  week('week', 'This Week', Icons.date_range_rounded),
+  month('month', 'This Month', Icons.calendar_month_rounded);
+  // year('year', 'This Year', Icons.calendar_today_rounded);
 
-
-// ===========================================================
+  const TimeRange(this.value, this.label, this.icon);
+  final String value;
+  final String label;
+  final IconData icon;
+}
 
 class _PlugHistoryPageState extends State<PlugHistoryPage> {
-
   List<ChartData> chartData = [];
   bool isLoading = true;
   String? errorMessage;
-
+  TimeRange selectedRange = TimeRange.yesterday;
 
   @override
   void initState() {
@@ -32,56 +39,157 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
     fetchChartData();
   }
 
-  Future<void> fetchChartData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
+  Future<void> _handleRefresh() async {
+    // Add a 3-second delay for the refresh animation
+    await Future.wait([
+      fetchChartData(),
+      Future.delayed(const Duration(seconds: 3)),
+    ]);
+  }
 
-      final response = await http.get(
-        Uri.parse(
-            '${dotenv.env['BASE_URL']}/api/plugs/${widget.plugId}/chart'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+Future<void> fetchChartData() async {
+  try {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
 
-        List<ChartData> tempData = [];
+    final response = await http.get(
+      Uri.parse(
+          '${dotenv.env['BASE_URL']}/api/plugs/${widget.plugId}/chart?range=${selectedRange.value}'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-        if (data['chart'] != null) {
-          for (int i = 0; i < data['chart'].length; i++) {
-            var item = data['chart'][i];
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
 
-            // Create a timestamp for each data point (assuming hourly intervals)
-            DateTime baseDate = DateTime.parse(item['date']);
-            DateTime timestamp = baseDate.add(Duration(hours: i));
+      print('=== API Response for ${selectedRange.value} ===');
+      print('Full response: ${json.encode(data)}');
 
-            tempData.add(ChartData(
-              timestamp,
-              (item['yesterday'] ?? 0).toDouble(),
-              (item['today'] ?? 0).toDouble(),
-            ));
+      List<ChartData> tempData = [];
+
+      if (data['chart'] != null && data['chart'] is List) {
+        final chartArray = data['chart'] as List;
+        print('Chart data length: ${chartArray.length}');
+
+        for (int i = 0; i < chartArray.length; i++) {
+          var item = chartArray[i];
+
+          print('Item $i: ${json.encode(item)}');
+
+          // Parse timestamp (renamed to 'date')
+          DateTime timestamp;
+          try {
+            timestamp = DateTime.parse(item['date']);
+          } catch (e) {
+            print('Error parsing date: ${item['date']}, using current time');
+            timestamp = DateTime.now().subtract(Duration(days: chartArray.length - i));
           }
-        }
 
-        setState(() {
-          chartData = tempData;
-          isLoading = false;
-        });
+          // Extract current and previous values (renamed keys)
+          double currentValue = double.tryParse(item['today'].toString()) ?? 0.0;
+          double previousValue = double.tryParse(item['yesterday'].toString()) ?? 0.0;
+
+          print('Extracted values - Current: $currentValue, Previous: $previousValue');
+
+          tempData.add(ChartData(
+            timestamp,
+            previousValue,
+            currentValue,
+          ));
+        }
       } else {
-        setState(() {
-          errorMessage = 'Failed to load data: ${response.statusCode}';
-          isLoading = false;
-        });
+        print('No chart data in response or invalid format');
       }
-    } catch (e) {
+
       setState(() {
-        errorMessage = 'Error: $e';
+        chartData = tempData;
         isLoading = false;
       });
+    } else {
+      print('API Error: ${response.statusCode} - ${response.body}');
+      setState(() {
+        errorMessage = 'Failed to load data: ${response.statusCode}';
+        isLoading = false;
+      });
+    }
+  } catch (e) {
+    print('Exception in fetchChartData: $e');
+    setState(() {
+      errorMessage = 'Error: $e';
+      isLoading = false;
+    });
+  }
+}
+
+  String _getComparisonLabel() {
+    switch (selectedRange) {
+      case TimeRange.yesterday:
+        return 'Day Before Yesterday';
+      case TimeRange.week:
+        return 'Last Week';
+      case TimeRange.month:
+        return 'Last Month';
+      // case TimeRange.year:
+      //   return 'Last Year';
+    }
+  }
+
+  String _getCurrentLabel() {
+    switch (selectedRange) {
+      case TimeRange.yesterday:
+        return 'Yesterday';
+      case TimeRange.week:
+        return 'This Week';
+      case TimeRange.month:
+        return 'This Month';
+      // case TimeRange.year:
+      //   return 'This Year';
+    }
+  }
+
+  DateFormat _getDateFormat() {
+    switch (selectedRange) {
+      case TimeRange.yesterday:
+        return DateFormat.Hm(); // Hour:Minute
+      case TimeRange.week:
+        return DateFormat.E(); // Day of week
+      case TimeRange.month:
+        return DateFormat.MMMd(); // Month Day
+      // case TimeRange.year:
+      //   return DateFormat.MMM(); // Month
+    }
+  }
+
+  DateTimeIntervalType _getIntervalType() {
+    switch (selectedRange) {
+      case TimeRange.yesterday:
+        return DateTimeIntervalType.hours;
+      case TimeRange.week:
+        return DateTimeIntervalType.days;
+      case TimeRange.month:
+        return DateTimeIntervalType.days;
+      // case TimeRange.year:
+      //   return DateTimeIntervalType.months;
+    }
+  }
+
+  double _getInterval() {
+    switch (selectedRange) {
+      case TimeRange.yesterday:
+        return 2; // Every 2 hours
+      case TimeRange.week:
+        return 1; // Every day
+      case TimeRange.month:
+        return 5; // Every 5 days
+      // case TimeRange.year:
+      //   return 1; // Every month
     }
   }
 
@@ -92,70 +200,83 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        foregroundColor: const Color(0xFF2D3748),
-        title: const Text(
-          'Energy Analytics',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 24,
-          ),
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF667EEA),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF667EEA).withOpacity(0.3),
-                  spreadRadius: 0,
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-              onPressed: () {
-                setState(() {
-                  isLoading = true;
-                  errorMessage = null;
-                });
-                fetchChartData();
-              },
-            ),
-          ),
-        ],
+        foregroundColor: const Color(0xFF119718),
+        // title: const Text(
+        //   'History',
+        //   style: TextStyle(
+        //     fontWeight: FontWeight.w700,
+        //     color: Colors.black,
+        //     fontSize: 24,
+        //   ),
+        // ),
+        // actions: [
+        //   Container(
+        //     margin: const EdgeInsets.only(right: 16),
+        //     decoration: BoxDecoration(
+        //       color: const Color(0xFF66BB6A),
+        //       borderRadius: BorderRadius.circular(12),
+        //       boxShadow: [
+        //         BoxShadow(
+        //           color: const Color(0xFF1EBE26).withOpacity(0.3),
+        //           spreadRadius: 0,
+        //           blurRadius: 8,
+        //           offset: const Offset(0, 4),
+        //         ),
+        //       ],
+        //     ),
+        //     child: IconButton(
+        //       icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+        //       onPressed: fetchChartData,
+        //     ),
+        //   ),
+        // ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              _buildHeaderCard(),
-              const SizedBox(height: 24),
-              _buildStatsCards(),
-              const SizedBox(height: 24),
-              Expanded(
-                child: _buildChartContainer(),
+        child: RefreshIndicator(
+          onRefresh: _handleRefresh,
+          color: const Color(0xFF119718),
+          backgroundColor: Colors.white,
+          strokeWidth: 3.0,
+          displacement: 40.0,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.of(context).size.height - MediaQuery.of(context).padding.top - kToolbarHeight,
               ),
-              const SizedBox(height: 20),
-            ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    _buildHeaderCard(),
+                    const SizedBox(height: 24),
+                    _buildRangeSelector(),
+                    const SizedBox(height: 20),
+                    _buildStatsCards(),
+                    const SizedBox(height: 24),
+                    Container(
+                      height: 400, // Fixed height for the chart
+                      child: _buildChartContainer(),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildHeaderCard() {
+ Widget _buildHeaderCard() {
     return Container(
       padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+          colors: [Color(0xFF119718), Color.fromARGB(255, 27, 178, 34)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -189,21 +310,41 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Energy Consumption',
+                  'Energy Consumption History',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: 18, //20
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Historical Data Analysis',
+                  '${selectedRange.label} Analysis',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
                   ),
+                ),
+                const SizedBox(height: 2),
+                // Pull-to-refresh hint
+                Row(
+                  children: [
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white.withOpacity(0.6),
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Pull to refresh',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.6),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -213,29 +354,97 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
     );
   }
 
+  Widget _buildRangeSelector() {
+    return Container(
+      height: 60,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: TimeRange.values.length,
+        itemBuilder: (context, index) {
+          final range = TimeRange.values[index];
+          final isSelected = selectedRange == range;
+          
+          return Container(
+            margin: EdgeInsets.only(right: index < TimeRange.values.length - 1 ? 12 : 0),
+            child: GestureDetector(
+              onTap: () {
+                if (selectedRange != range) {
+                  setState(() {
+                    selectedRange = range;
+                  });
+                  fetchChartData();
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF119718) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFF119718) : const Color(0xFFE5E7EB),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    if (isSelected)
+                      BoxShadow(
+                        color: const Color(0xFF1EBE26).withOpacity(0.3),
+                        spreadRadius: 0,
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      range.icon,
+                      color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      range.label,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildStatsCards() {
     if (chartData.isEmpty) return const SizedBox.shrink();
 
-    double todayTotal = chartData.fold(0, (sum, item) => sum + item.todayConsumption);
-    double yesterdayTotal = chartData.fold(0, (sum, item) => sum + item.yesterdayConsumption);
-    double difference = todayTotal - yesterdayTotal;
+    double currentTotal = chartData.fold(0, (sum, item) => sum + item.todayConsumption);
+    double previousTotal = chartData.fold(0, (sum, item) => sum + item.yesterdayConsumption);
+    double difference = currentTotal - previousTotal;
     bool isIncrease = difference > 0;
 
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
-            'Today',
-            '${todayTotal.toStringAsFixed(2)} kWh',
-            Icons.today_rounded,
+            _getCurrentLabel(),
+            '${currentTotal.toStringAsFixed(2)} kWh',
+            Icons.trending_up_rounded,
             const Color(0xFF10B981),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
-            'Yesterday',
-            '${yesterdayTotal.toStringAsFixed(2)} kWh',
+            _getComparisonLabel(),
+            '${previousTotal.toStringAsFixed(2)} kWh',
             Icons.history_rounded,
             const Color(0xFF6B7280),
           ),
@@ -335,7 +544,7 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF667EEA)),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1EBE26)),
                 strokeWidth: 3,
               ),
             ),
@@ -383,17 +592,11 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: () {
-                setState(() {
-                  isLoading = true;
-                  errorMessage = null;
-                });
-                fetchChartData();
-              },
+              onPressed: fetchChartData,
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Try Again'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF667EEA),
+                backgroundColor: const Color(0xFF1EBE26),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(
@@ -435,10 +638,10 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Energy consumption data will appear here once available',
+            Text(
+              'Energy consumption data for ${selectedRange.label.toLowerCase()} will appear here once available',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 14,
                 color: Color(0xFF9CA3AF),
                 fontWeight: FontWeight.w400,
@@ -461,9 +664,9 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
               fontWeight: FontWeight.w500,
             ),
           ),
-          dateFormat: DateFormat.Hm(),
-          intervalType: DateTimeIntervalType.hours,
-          interval: 2,
+          dateFormat: _getDateFormat(),
+          intervalType: _getIntervalType(),
+          interval: _getInterval(),
           labelStyle: const TextStyle(
             color: Color(0xFF9CA3AF),
             fontSize: 11,
@@ -491,7 +694,7 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
           majorGridLines: const MajorGridLines(color: Color(0xFFF3F4F6), width: 1),
         ),
         title: ChartTitle(
-          text: 'Energy Consumption Comparison',
+          text: 'Energy Consumption Comparison - ${selectedRange.label}',
           textStyle: const TextStyle(
             color: Color(0xFF1F2937),
             fontSize: 16,
@@ -519,15 +722,15 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
             dataSource: chartData,
             xValueMapper: (ChartData data, _) => data.timestamp,
             yValueMapper: (ChartData data, _) => data.todayConsumption,
-            name: 'Today',
-            color: const Color(0xFF667EEA),
+            name: _getCurrentLabel(),
+            color: const Color(0xFF1EBE26),
             width: 3,
             markerSettings: const MarkerSettings(
               isVisible: true,
               shape: DataMarkerType.circle,
               width: 6,
               height: 6,
-              color: Color(0xFF667EEA),
+              color: Color(0xFF1EBE26),
               borderColor: Colors.white,
               borderWidth: 2,
             ),
@@ -536,7 +739,7 @@ class _PlugHistoryPageState extends State<PlugHistoryPage> {
             dataSource: chartData,
             xValueMapper: (ChartData data, _) => data.timestamp,
             yValueMapper: (ChartData data, _) => data.yesterdayConsumption,
-            name: 'Yesterday',
+            name: _getComparisonLabel(),
             color: const Color(0xFF9CA3AF),
             width: 3,
             dashArray: const <double>[5, 3],

@@ -1,7 +1,10 @@
+import 'package:ecotrack_mobile/widgets/error_modal.dart';
+import 'package:ecotrack_mobile/widgets/success_modal.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 
 class ApplianceDeleteHelper {
   
@@ -10,8 +13,8 @@ class ApplianceDeleteHelper {
     required BuildContext context,
     required String plugId,
     required String plugName,
-    required Function(String) onPlugRemoved, // Callback to update UI
-    required VoidCallback onStateUpdate, // Callback for setState
+    required Function(String) onPlugRemoved,
+    required VoidCallback onStateUpdate,
   }) async {
     // Single comprehensive confirmation dialog
     final confirmed = await showDialog<bool>(
@@ -209,7 +212,7 @@ class ApplianceDeleteHelper {
     );
   }
 
-  // Enhanced delete method with loading feedback
+  // Enhanced delete method with proper error handling
   static Future<void> _performDeleteWithFeedback({
     required BuildContext context,
     required String plugId,
@@ -246,58 +249,92 @@ class ApplianceDeleteHelper {
       ),
     );
 
-    // Call the delete method
-    await _performDelete(
-      context: context,
-      plugId: plugId,
-      plugName: plugName,
-      onPlugRemoved: onPlugRemoved,
-      onStateUpdate: onStateUpdate,
-    );
-
-    // Close loading dialog
-    Navigator.of(context).pop();
+    try {
+      // Call the delete method with proper error handling
+      final success = await _performDelete(
+        plugId: plugId,
+        plugName: plugName,
+      );
+      
+      // Close loading dialog
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+      
+      if (success) {
+        // Add a small delay to ensure the loading dialog is fully dismissed
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        // Show success modal using custom modal
+        if (context.mounted) {
+          await context.showCustomSuccessModal(
+            title: 'Device Removed',
+            message: 'Smart plug reset and removed successfully',
+            buttonText: 'Continue',
+            onButtonPressed: () {
+              Navigator.of(context).pop();
+              // Call the callback to remove plug from local state
+              onPlugRemoved(plugId);
+              onStateUpdate();
+            },
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+      
+      // Add a small delay to ensure the loading dialog is fully dismissed
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // Handle any unhandled exceptions using custom error modal
+      if (context.mounted) {
+        await context.showCustomErrorModal(
+          title: 'Plug Removal Failed',
+          message: e.toString().replaceAll('Exception: ', ''),
+          buttonText: 'OK',
+          onButtonPressed: () {
+            Navigator.of(context).pop();
+          },
+        );
+      }
+    }
   }
 
-  // API delete method with error handling
-  static Future<void> _performDelete({
-    required BuildContext context,
+  // API delete method with better error handling and timeout
+  static Future<bool> _performDelete({
     required String plugId,
     required String plugName,
-    required Function(String) onPlugRemoved,
-    required VoidCallback onStateUpdate,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
     if (token == null || token.isEmpty) {
-      print('Token not found');
-      _showErrorModal(context, 'Authentication error. Please log in again.');
-      return;
+      throw Exception('Authentication error. Please log in again.');
     }
 
-    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId');
+    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId'); //- hard delete
+    //final url = Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId/soft-delete'); // - soft delete
 
     try {
+      // Added timeout to prevent hanging
       final response = await http.delete(
         url,
         headers: {
-          'Authorization': 'Bearer $token',
+         // 'Authorization': 'Bearer $token', - for hard delete only
           'Content-Type': 'application/json',
+        },
+      ).timeout(
+        const Duration(seconds: 30), // 30 second timeout
+        onTimeout: () {
+          throw Exception('Request timed out. Please check your connection and try again.');
         },
       );
 
       if (response.statusCode == 200) {
-        // Show success modal and handle success callback
-        _showSuccessModal(
-          context,
-          'Smart plug reset and removed successfully',
-          () {
-            // Call the callback to remove plug from local state
-            onPlugRemoved(plugId);
-            onStateUpdate();
-          },
-        );
+        return true;
       } else {
         // Handle different error status codes
         String errorMessage = 'Failed to delete and reset smart plug';
@@ -309,52 +346,14 @@ class ApplianceDeleteHelper {
           errorMessage = 'Server error. Please try again later.';
         }
 
-        _showErrorModal(context, errorMessage);
+        throw Exception(errorMessage);
       }
     } catch (e) {
-      print('Error deleting smart plug: $e');
-      String errorMessage = e.toString().contains('Exception:')
-          ? e.toString().replaceFirst('Exception: ', '')
-          : 'Network error. Please check your connection.';
-      
-      _showErrorModal(context, errorMessage);
+      if (e.toString().contains('Exception:')) {
+        rethrow;
+      } else {
+        throw Exception('Network error. Please check your connection and try again.');
+      }
     }
-  }
-
-  // Helper method to show error modal
-  static void _showErrorModal(BuildContext context, String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Error'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Helper method to show success modal
-  static void _showSuccessModal(BuildContext context, String message, VoidCallback onSuccess) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Success'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              onSuccess();
-            },
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
   }
 }

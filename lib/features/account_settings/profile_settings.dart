@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:ecotrack_mobile/widgets/navbar.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,7 +8,11 @@ import 'package:ecotrack_mobile/features/landing_page/landing_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
+
+// added note for footer of web to reuse the terms of service redirect
 class ProfileSettingsPage extends StatefulWidget {
   const ProfileSettingsPage({Key? key}) : super(key: key);
 
@@ -23,11 +28,25 @@ class _ProfileSettingsPageState extends State<ProfileSettingsPage> {
   String barangay = "";
   File? profileImage;
 
+  // new
+  String _appVersion = '';
+
+
   @override
   void initState() {
     super.initState();
     loadUserData();
+    _loadAppVersion(); // Load app version
+
+    
   }
+
+Future<void> _loadAppVersion() async {
+  final info = await PackageInfo.fromPlatform();
+  setState(() {
+    _appVersion = 'v${info.version}';
+  });
+}
 
 Future<void> loadUserData() async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -334,8 +353,55 @@ Future<void> _editField(String title, String key, String currentValue) async {
                     ),
                   ),
 
-                  const SizedBox(height: 30),
+                  // const SizedBox(height: 30),
 
+const SizedBox(height: 20),
+
+// Info Section Buttons (Plain, Spaced)
+Column(
+children: [
+_buildPlainInfoTile(
+  icon: Icons.info_outline,
+  label: "About",
+  onTap: () => _showInfoDialog(
+    "About",
+    "EcoTrack is a smart energy monitoring and management app designed to help users reduce electricity consumption, track appliance usage, and promote sustainable living.",
+  ),
+),
+
+  const SizedBox(height: 8),
+  _buildPlainInfoTile(
+    icon: Icons.help_outline,
+    label: "Help & Support",
+    onTap: () => _showInfoDialog(
+      "Help & Support",
+      "Need help? Reach out to our support team at support@ecotrack.online or visit our Help Center for FAQs and troubleshooting guides.",
+    ),
+  ),
+  const SizedBox(height: 8),
+  _buildPlainInfoTile(
+    icon: Icons.connect_without_contact,
+    label: "Connect with Us",
+    onTap: () => _showInfoDialog(
+      "Connect with Us",
+      "Follow us on Facebook, Instagram, and Twitter @ecotrack.online. Stay updated and join the conversation!",
+    ),
+  ),
+  const SizedBox(height: 8),
+  _buildPlainInfoTile(
+    icon: Icons.description,
+    // should add a redirect link to website, to view terms and conditions, also reuse it for terms of service in the footer of the website
+    label: "Terms & Conditions",
+    onTap: () => _showInfoDialog(
+      "Terms & Conditions",
+      "By using EcoTrack, you agree to our Terms of Service and Privacy Policy. Please read them carefully for more details on your rights and responsibilities.\n\nApp Version: $_appVersion",
+    ),
+  ),
+],
+
+),
+
+const SizedBox(height: 20),
                   // Logout button
                   Container(
                     width: double.infinity,
@@ -389,6 +455,58 @@ Future<void> _editField(String title, String key, String currentValue) async {
                       ),
                     ),
                   ),
+
+
+                  // new added
+// const SizedBox(height: 30),
+
+// // Info Section Buttons (Plain, Spaced)
+// Column(
+// children: [
+//   _buildPlainInfoTile(
+//     icon: Icons.info_outline,
+//     label: "About",
+//     onTap: () => _showInfoDialog(
+//       "About",
+//       "EcoTrack is a smart energy monitoring and management app designed to help users reduce electricity consumption, track appliance usage, and promote sustainable living.",
+//     ),
+//   ),
+//   const SizedBox(height: 8),
+//   _buildPlainInfoTile(
+//     icon: Icons.help_outline,
+//     label: "Help & Support",
+//     onTap: () => _showInfoDialog(
+//       "Help & Support",
+//       "Need help? Reach out to our support team at support@ecotrack.com or visit our Help Center for FAQs and troubleshooting guides.",
+//     ),
+//   ),
+//   const SizedBox(height: 8),
+//   _buildPlainInfoTile(
+//     icon: Icons.connect_without_contact,
+//     label: "Connect with Us",
+//     onTap: () => _showInfoDialog(
+//       "Connect with Us",
+//       "Follow us on Facebook, Instagram, and Twitter @EcoTrack. Stay updated and join the conversation!",
+//     ),
+//   ),
+//   const SizedBox(height: 8),
+//   _buildPlainInfoTile(
+//     icon: Icons.description,
+//     label: "Terms & Conditions",
+//     onTap: () => _showInfoDialog(
+//       "Terms & Conditions",
+//       "By using EcoTrack, you agree to our Terms of Service and Privacy Policy. Please read them carefully for more details on your rights and responsibilities.",
+//     ),
+//   ),
+// ],
+
+// ),
+
+
+                  
+// ============================
+
+
                 ],
               ),
             ),
@@ -467,6 +585,123 @@ Future<void> _editField(String title, String key, String currentValue) async {
       endIndent: 20,
     );
   }
+
+// ============================
+Widget _buildPlainInfoTile({
+  required IconData icon,
+  required String label,
+  required VoidCallback onTap,
+}) {
+  return Material(
+    color: const Color(0xFFF9F9F9), // light grey box
+    borderRadius: BorderRadius.circular(12),
+    elevation: 0.5, // subtle shadow
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.black87, size: 20),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.black54, size: 16),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+
+//============================
+
+Future<void> _showInfoDialog(String title, String content) async {
+  return showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+      title: Row(
+        children: [
+          Icon(Icons.info_outline, color: Colors.green),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 18,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: title == "Connect with Us"
+          ? RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 15, color: Colors.black87),
+                children: [
+                  const TextSpan(text: "Follow us on "),
+                  TextSpan(
+                    text: "Facebook",
+                    style: const TextStyle(color: Colors.green, decoration: TextDecoration.underline),
+                    recognizer: TapGestureRecognizer()
+                      ..onTap = () => launchUrl(Uri.parse("https://www.facebook.com/Batangas1ElectricCooperativeInc")),
+                  ),
+                  const TextSpan(text: " and our website: "),
+                  TextSpan(
+                    text: "@ecotrack.online",
+                    style: const TextStyle(color: Colors.green, decoration: TextDecoration.underline),
+                    recognizer: TapGestureRecognizer()
+                      ..onTap = () => launchUrl(Uri.parse("https://ecotrack.online")),
+                  ),
+                  const TextSpan(text: ". Stay updated and join the conversation!"),
+                ],
+              ),
+            )
+          : Text(
+              content,
+              style: const TextStyle(fontSize: 15, height: 1.4, color: Colors.black87),
+            ),
+      actions: [
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: Colors.green,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text("Close"),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+
+// ============================----------------=========================== //
 
   Future<bool?> _showLogoutConfirmation() async {
     return showDialog<bool>(

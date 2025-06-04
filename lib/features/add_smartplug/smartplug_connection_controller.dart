@@ -281,7 +281,8 @@ Future<ConfigurationResult> configureSmartPlug({
     //   return mqttConfigResult;
     // }
 
-    onLoadingDismiss?.call();
+    //onLoadingDismiss?.call();
+    onLoading?.call("Registering plug...");
 
     // Now handle registration
     return await registerPlugWithRetry(newIp);

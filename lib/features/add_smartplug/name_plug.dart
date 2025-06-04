@@ -142,6 +142,61 @@ class _NamePlugPageState extends State<NamePlugPage> {
     super.dispose();
   }
 
+  /// Fetches existing plug names from the server to check for duplicates
+  Future<List<String>> _getExistingPlugNames() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? token = prefs.getString('token');
+      final String? userId = prefs.getString('userId');
+
+      if (token == null || token.isEmpty) {
+        return [];
+      }
+
+      final String url =
+          '${dotenv.env['BASE_URL']}/api/auth/mobile/$userId/plugs';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          // 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> decoded = jsonDecode(response.body);
+        final List<dynamic> plugsData = decoded['plugs'] ?? [];
+
+        return plugsData
+            .map((plug) => plug['name']?.toString() ?? '')
+            .where((name) => name.isNotEmpty)
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('Error fetching existing plug names: $e');
+    }
+
+    return [];
+  }
+
+  /// Generates a unique plug name by appending (1), (2), etc. if duplicates exist
+  String _generateUniquePlugName(
+      String proposedName, List<String> existingNames) {
+    String uniqueName = proposedName;
+    int counter = 1;
+
+    // Convert to lowercase for case-insensitive comparison
+    final existingNamesLower =
+        existingNames.map((name) => name.toLowerCase()).toList();
+
+    while (existingNamesLower.contains(uniqueName.toLowerCase())) {
+      uniqueName = '$proposedName ($counter)';
+      counter++;
+    }
+
+    return uniqueName;
+  }
+
   Future<ConfigurationResult> configureMqtt(
       String plugIp, String plugId) async {
     final mqttHost = dotenv.env['MQTT_HOST'] ?? '';
@@ -215,51 +270,92 @@ class _NamePlugPageState extends State<NamePlugPage> {
     );
   }
 
-// class LoadingPainter extends CustomPainter {
-//   @override
-//   void paint(Canvas canvas, Size size) {
-//     final paint = Paint()
-//       ..color = Color(0xFF4CAF50)
-//       ..style = PaintingStyle.fill;
-//     final center = Offset(size.width / 2, size.height / 2);
-//     final radius = size.width / 2;
-//     for (int i = 0; i < 8; i++) {
-//       final angle = i * 45 * (math.pi / 180);
-//       final x = center.dx + (radius - 7) * math.cos(angle);
-//       final y = center.dy + (radius - 7) * math.sin(angle);
-//       canvas.drawCircle(Offset(x, y), 3.0, paint);
-//     }
-//   }
+void _saveDevice() async {
+  // Validate appliance selection first
+  if (_selectedApplianceName == null || _selectedApplianceName!.isEmpty) {
+    context.showCustomErrorModal(
+      message: 'Please select an appliance type before adding the device.',
+      onButtonPressed: () {
+        Navigator.pop(context);
+      },
+    );
+    return;
+  }
 
-//   @override
-//   bool shouldRepaint(CustomPainter oldDelegate) => false;
-// }
+  // Additional validation for "Others" selection
+  if (_selectedApplianceName == 'Others' && 
+      (_customApplianceNameController.text.isEmpty || 
+       _customApplianceNameController.text.trim().isEmpty)) {
+    context.showCustomErrorModal(
+      message: 'Please enter a custom appliance name.',
+      onButtonPressed: () {
+        Navigator.pop(context);
+      },
+    );
+    return;
+  }
 
-  void _saveDevice() async {
-    // Show loading indicator
-    _showLoadingDialog();
+  // Show loading indicator
+  _showLoadingDialog();
 
-    // Wait 3 seconds (simulate loading)
-    await Future.delayed(const Duration(seconds: 1));
+  try {
+    // Get existing plug names to check for duplicates
+    final existingNames = await _getExistingPlugNames();
 
-    final String plugName =
-        _plugNameController.text.isEmpty ? _plugName : _plugNameController.text;
+    final String proposedPlugName = _plugNameController.text.isEmpty
+        ? _plugName
+        : _plugNameController.text;
+
+    // Generate unique plug name
+    final String uniquePlugName =
+        _generateUniquePlugName(proposedPlugName, existingNames);
 
     final String applianceName = (_selectedApplianceName == 'Others')
-        ? _customApplianceNameController.text
+        ? _customApplianceNameController.text.trim()
         : _selectedApplianceName ?? 'Unknown';
 
     final String iconKey = _getIconKey(applianceName);
     final String url =
         '${dotenv.env['BASE_URL']}/api/plugs/${widget.plugId}/rename';
 
-    try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      final String? token = prefs.getString('token');
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? token = prefs.getString('token');
 
-      if (token == null || token.isEmpty) {
+    if (token == null || token.isEmpty) {
+      Navigator.pop(context); // Close loading dialog
+      context.showCustomErrorModal(
+        message: 'Authentication token missing. Please login again.',
+        onButtonPressed: () {
+          Navigator.pop(context);
+        },
+      );
+      return;
+    }
+
+    final response = await http.put(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'name': uniquePlugName, // Use the unique name
+        'applianceName': applianceName,
+        'iconKey': iconKey,
+        'iconVariant': _selectedIconVariant,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      // Configure MQTT after successfully renaming the plug
+      final result = await configureMqtt(widget.plugIp, widget.plugId);
+
+      Navigator.pop(context); // Close loading dialog
+
+      if (!result.success) {
+        debugPrint('⚠️ MQTT configuration failed: ${result.message}');
         context.showCustomErrorModal(
-          message: 'Authentication token missing. Please login again.',
+          message: result.message,
           onButtonPressed: () {
             Navigator.pop(context);
           },
@@ -267,67 +363,46 @@ class _NamePlugPageState extends State<NamePlugPage> {
         return;
       }
 
-      final response = await http.put(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'name': plugName,
-          'applianceName': applianceName,
-          'iconKey': iconKey,
-          'iconVariant': _selectedIconVariant,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        // Configure MQTT after successfully renaming the plug
-        final result = await configureMqtt(widget.plugIp, widget.plugId);
-
-        if (!result.success) {
-          debugPrint('⚠️ MQTT configuration failed: ${result.message}');
-          context.showCustomErrorModal(
-            message: result.message,
-            onButtonPressed: () {
-              Navigator.pop(context);
-            },
-          );
-          return;
-        }
-
-        // ✅ Show success modal
-        context.showCustomSuccessModal(
-          message: 'Device added successfully!',
-          onButtonPressed: () {
-            Navigator.pop(context);
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AppliancesPage(),
-              ),
-            );
-          },
-        );
-      } else {
-        debugPrint(
-            '❌ Rename failed: ${response.statusCode} - ${response.body}');
-        context.showCustomErrorModal(
-          message: 'Could not add the device. Please try again.',
-          onButtonPressed: () {
-            Navigator.pop(context);
-          },
-        );
+      // Show success message with unique name if it was changed
+      String successMessage = 'Device added successfully!';
+      if (uniquePlugName != proposedPlugName) {
+        successMessage = 'Device added successfully as "$uniquePlugName"!';
       }
-    } catch (e) {
+
+      // ✅ Show success modal
+      context.showCustomSuccessModal(
+        message: successMessage,
+        onButtonPressed: () {
+          Navigator.pop(context);
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AppliancesPage(),
+            ),
+          );
+        },
+      );
+    } else {
+      Navigator.pop(context); // Close loading dialog
+      debugPrint(
+          '❌ Rename failed: ${response.statusCode} - ${response.body}');
       context.showCustomErrorModal(
-        message: 'Something went wrong. Please check your internet connection.',
+        message: 'Could not add the device. Please try again.',
         onButtonPressed: () {
           Navigator.pop(context);
         },
       );
     }
+  } catch (e) {
+    Navigator.pop(context); // Close loading dialog
+    context.showCustomErrorModal(
+      message: 'Something went wrong. Please check your internet connection.',
+      onButtonPressed: () {
+        Navigator.pop(context);
+      },
+    );
   }
+}
 
   String _getIconKey(String? applianceName) {
     if (applianceName == null) return 'default';
@@ -598,7 +673,8 @@ class _NamePlugPageState extends State<NamePlugPage> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: ElevatedButton(
-                    onPressed: _saveDevice,
+                    onPressed: _selectedApplianceName != null ? _saveDevice : null,
+                   // onPressed: _saveDevice,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       shape: RoundedRectangleBorder(
@@ -622,10 +698,10 @@ class _NamePlugPageState extends State<NamePlugPage> {
           ),
         ),
       ),
-      bottomNavigationBar: const Padding(
-        padding: EdgeInsets.only(bottom: 12.0),
-        child: CustomBottomNavBar(selectedIndex: 2),
-      ),
+      // bottomNavigationBar: const Padding(
+      //   padding: EdgeInsets.only(bottom: 12.0),
+      //   child: CustomBottomNavBar(selectedIndex: 2),
+      // ),
     );
   }
 }

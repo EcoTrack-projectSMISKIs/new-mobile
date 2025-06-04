@@ -1,20 +1,20 @@
-import 'package:ecotrack_mobile/features/add_smartplug/select_home_wifi.dart';
-import 'package:ecotrack_mobile/features/appliance_list/appliance_details.dart';
 import 'package:ecotrack_mobile/features/dashboard/dashboard.dart';
 import 'package:ecotrack_mobile/features/landing_page/landing_page.dart';
-import 'package:ecotrack_mobile/widgets/navbar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:ecotrack_mobile/features/add_smartplug/name_plug.dart';
-import 'package:ecotrack_mobile/widgets/error_modal.dart';
-import 'package:ecotrack_mobile/widgets/success_modal.dart';
-import 'package:ecotrack_mobile/features/appliance_list/appliances.dart';
-import 'package:ecotrack_mobile/features/news_and_updates/news_and_updates.dart';
-import 'package:ecotrack_mobile/features/add_smartplug/select_smartplug.dart';
-import 'package:wifi_scan/wifi_scan.dart';
-//import 'package:ecotrack_mobile/features/add_smartplug/static.dart';
+// import 'package:ecotrack_mobile/features/add_smartplug/name_plug.dart';
+// import 'package:ecotrack_mobile/widgets/error_modal.dart';
+// import 'package:ecotrack_mobile/widgets/success_modal.dart';
+// import 'package:ecotrack_mobile/features/appliance_list/appliances.dart';
+// import 'package:ecotrack_mobile/features/news_and_updates/news_and_updates.dart';
+// import 'package:ecotrack_mobile/features/add_smartplug/select_smartplug.dart';
+// import 'package:wifi_scan/wifi_scan.dart';
+// import 'package:ecotrack_mobile/features/add_smartplug/static.dart';
+// import 'package:ecotrack_mobile/widgets/navbar.dart';
+// import 'package:ecotrack_mobile/features/add_smartplug/select_home_wifi.dart';
+// import 'package:ecotrack_mobile/features/appliance_list/appliance_details.dart';
 
 
 Future<void> main() async {
@@ -86,13 +86,13 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             Image.asset(
               'assets/lottie/logo.png',
-              width: 120,
+              width: 160, //120
             ),
             const SizedBox(height: 32),
             const Text(
               'ecotrack',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 40, //24
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.5,
