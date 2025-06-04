@@ -16,7 +16,7 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
-  
+
   // Text controllers for real-time validation
   final _nameController = TextEditingController();
   final _usernameController = TextEditingController();
@@ -99,24 +99,29 @@ class _RegisterPageState extends State<RegisterPage> {
               break;
             case 'username':
               username = _usernameController.text;
-              usernameClientError = _validateUsername(_usernameController.text, false);
-              usernameValid = usernameClientError == null && _usernameController.text.isNotEmpty;
+              usernameClientError =
+                  _validateUsername(_usernameController.text, false);
+              usernameValid = usernameClientError == null &&
+                  _usernameController.text.isNotEmpty;
               break;
             case 'phone':
               phone = _phoneController.text;
               phoneClientError = _validatePhone(_phoneController.text, false);
-              phoneValid = phoneClientError == null && _phoneController.text.isNotEmpty;
+              phoneValid =
+                  phoneClientError == null && _phoneController.text.isNotEmpty;
               break;
             case 'email':
               email = _emailController.text;
               emailClientError = _validateEmail(_emailController.text, false);
-              emailValid = emailClientError == null && _emailController.text.isNotEmpty;
+              emailValid =
+                  emailClientError == null && _emailController.text.isNotEmpty;
               break;
             case 'password':
               password = _passwordController.text;
               _updatePasswordStrength(_passwordController.text);
               passwordClientError = _validatePassword(_passwordController.text);
-              passwordValid = passwordClientError == null && _passwordController.text.isNotEmpty;
+              passwordValid = passwordClientError == null &&
+                  _passwordController.text.isNotEmpty;
               break;
           }
         });
@@ -153,7 +158,7 @@ class _RegisterPageState extends State<RegisterPage> {
     if (checkServerError && usernameError != null) {
       return usernameError;
     }
-    
+
     if (value == null || value.trim().isEmpty) {
       return "Username is required";
     }
@@ -176,13 +181,13 @@ class _RegisterPageState extends State<RegisterPage> {
     if (checkServerError && phoneError != null) {
       return phoneError;
     }
-    
+
     if (value == null || value.trim().isEmpty) {
       return "Phone number is required";
     }
-    
+
     String cleanPhone = value.replaceAll(RegExp(r'[^\d]'), '');
-    
+
     if (cleanPhone.length == 11 && cleanPhone.startsWith('09')) {
       return null;
     } else if (cleanPhone.length == 13 && cleanPhone.startsWith('639')) {
@@ -198,7 +203,7 @@ class _RegisterPageState extends State<RegisterPage> {
     if (checkServerError && emailError != null) {
       return emailError;
     }
-    
+
     if (value == null || value.trim().isEmpty) {
       return "Email is required";
     }
@@ -248,13 +253,22 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  // Helper method to get the error to display (prioritizes server errors)
+  String? _getDisplayError(String? serverError, String? clientError) {
+    // Prioritize server errors over client errors
+    if (serverError != null) {
+      return serverError;
+    }
+    return clientError;
+  }
+
   bool get _isFormValid {
-    return nameValid && 
-           usernameValid && 
-           phoneValid && 
-           emailValid && 
-           passwordValid && 
-           barangay.isNotEmpty;
+    return nameValid &&
+        usernameValid &&
+        phoneValid &&
+        emailValid &&
+        passwordValid &&
+        barangay.isNotEmpty;
   }
 
   Future<void> register() async {
@@ -302,7 +316,7 @@ class _RegisterPageState extends State<RegisterPage> {
         );
       } else {
         if (!mounted) return;
-        
+
         if (response.statusCode == 409 && resData['errors'] != null) {
           Map<String, dynamic> errors = resData['errors'];
           setState(() {
@@ -316,7 +330,7 @@ class _RegisterPageState extends State<RegisterPage> {
               emailError = errors['email'];
             }
           });
-          
+
           _formKey.currentState!.validate();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -362,7 +376,8 @@ class _RegisterPageState extends State<RegisterPage> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.green, size: 28),
+                      icon: const Icon(Icons.arrow_back,
+                          color: Colors.green, size: 28),
                       onPressed: () => Navigator.pop(context),
                     ),
                     const SizedBox(width: 8),
@@ -377,7 +392,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ],
                 ),
               ),
-              
+
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Padding(
@@ -424,14 +439,23 @@ class _RegisterPageState extends State<RegisterPage> {
                         },
                       ),
 
-                      // Username Field
+                      // Username Field - FIXED: Shows only one error
                       _buildEnhancedField(
                         controller: _usernameController,
                         label: "Username",
                         icon: Icons.alternate_email,
-                        isValid: usernameValid,
-                        errorText: usernameError ?? usernameClientError,
-                        validator: (val) => _validateUsername(val, true),
+                        isValid: usernameValid &&
+                            usernameError ==
+                                null, // Only show valid if no server error
+                        errorText: _getDisplayError(usernameError,
+                            usernameClientError), // Use helper method
+                        validator: (val) {
+                          // Don't validate in the validator if we have server error to display
+                          if (usernameError != null)
+                            return null; // Let errorText handle it
+                          return _validateUsername(
+                              val, false); // Only client-side validation
+                        },
                         onChanged: (val) {
                           username = val;
                           _clearServerErrors();
@@ -439,34 +463,50 @@ class _RegisterPageState extends State<RegisterPage> {
                         helperText: "Must start with a letter, 3-20 characters",
                       ),
 
-                      // Phone Field
+                      // Phone Field - FIXED: Shows only one error
                       _buildEnhancedField(
                         controller: _phoneController,
                         label: "Phone Number",
                         icon: Icons.phone_outlined,
                         type: TextInputType.phone,
-                        isValid: phoneValid,
-                        errorText: phoneError ?? phoneClientError,
-                        validator: (val) => _validatePhone(val, true),
+                        isValid: phoneValid &&
+                            phoneError ==
+                                null, // Only show valid if no server error
+                        errorText:
+                            _getDisplayError(phoneError, phoneClientError),
+                        validator: (val) {
+                          if (phoneError != null)
+                            return null; // Let errorText handle it
+                          return _validatePhone(
+                              val, false); // Only client-side validation
+                        },
                         onChanged: (val) {
                           phone = val;
                           _clearServerErrors();
                         },
                         helperText: "Format: 09xxxxxxxxx",
                         inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\s()]')),
+                          FilteringTextInputFormatter.allow(
+                              RegExp(r'[0-9+\-\s()]')),
                         ],
                       ),
 
-                      // Email Field
+                      // Email Field - FIXED: Shows only one error
                       _buildEnhancedField(
                         controller: _emailController,
                         label: "Email Address",
                         icon: Icons.email_outlined,
                         type: TextInputType.emailAddress,
-                        isValid: emailValid,
-                        errorText: emailError ?? emailClientError,
-                        validator: (val) => _validateEmail(val, true),
+                        isValid: emailValid &&
+                            emailError == null, // Add server error check
+                        errorText:
+                            _getDisplayError(emailError, emailClientError),
+                        validator: (val) {
+                          if (emailError != null)
+                            return null; // Let errorText handle it
+                          return _validateEmail(
+                              val, false); // Only client-side validation
+                        },
                         onChanged: (val) {
                           email = val;
                           _clearServerErrors();
@@ -488,8 +528,10 @@ class _RegisterPageState extends State<RegisterPage> {
                         height: 56,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _isFormValid ? Colors.green : Colors.grey[300],
-                            foregroundColor: _isFormValid ? Colors.white : Colors.grey[600],
+                            backgroundColor:
+                                _isFormValid ? Colors.green : Colors.grey[300],
+                            foregroundColor:
+                                _isFormValid ? Colors.white : Colors.grey[600],
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -690,7 +732,8 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Widget _buildPasswordField() {
-    bool hasError = passwordClientError != null && _passwordController.text.isNotEmpty;
+    bool hasError =
+        passwordClientError != null && _passwordController.text.isNotEmpty;
     bool showSuccess = passwordValid && _passwordController.text.isNotEmpty;
 
     return Padding(
@@ -726,7 +769,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   IconButton(
                     icon: Icon(
-                      _passwordVisible ? Icons.visibility : Icons.visibility_off,
+                      _passwordVisible
+                          ? Icons.visibility
+                          : Icons.visibility_off,
                       color: Colors.grey[600],
                     ),
                     onPressed: () {
@@ -772,7 +817,7 @@ class _RegisterPageState extends State<RegisterPage> {
             },
             validator: _validatePassword,
           ),
-          
+
           // Password Strength Indicators
           if (_passwordController.text.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -790,16 +835,20 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  _buildPasswordRequirement("At least 8 characters", hasMinLength),
-                  _buildPasswordRequirement("One uppercase letter", hasUppercase),
-                  _buildPasswordRequirement("One lowercase letter", hasLowercase),
+                  _buildPasswordRequirement(
+                      "At least 8 characters", hasMinLength),
+                  _buildPasswordRequirement(
+                      "One uppercase letter", hasUppercase),
+                  _buildPasswordRequirement(
+                      "One lowercase letter", hasLowercase),
                   _buildPasswordRequirement("One number", hasNumbers),
-                  _buildPasswordRequirement("One special character", hasSpecialCharacters),
+                  _buildPasswordRequirement(
+                      "One special character", hasSpecialCharacters),
                 ],
               ),
             ),
           ],
-          
+
           if (hasError)
             Padding(
               padding: const EdgeInsets.only(top: 4, left: 12),
@@ -861,14 +910,48 @@ class _RegisterPageState extends State<RegisterPage> {
         ),
       ),
       items: <String>[
-        "Aga", "Balaytigui", "Banilad", "Barangay 1 (Pob.)", "Barangay 2 (Pob.)",
-        "Barangay 3 (Pob.)", "Barangay 4 (Pob.)", "Barangay 5 (Pob.)", "Barangay 6 (Pob.)",
-        "Barangay 7 (Pob.)", "Barangay 8 (Pob.)", "Barangay 9 (Pob.)", "Barangay 10 (Pob.)",
-        "Barangay 11 (Pob.)", "Barangay 12 (Pob.)", "Bilaran", "Bucana", "Bulihan",
-        "Bunducan", "Butucan", "Calayo", "Catandaan", "Cogunan", "Dayap", "Kaylaway",
-        "Kayrilaw", "Latag", "Looc", "Lumbangan", "Malapad Na Bato", "Mataas Na Pulo",
-        "Maugat", "Munting Indang", "Natipuan", "Pantalan", "Papaya", "Putat", "Reparo",
-        "Talangan", "Tumalím", "Utod", "Wawa"
+        "Aga",
+        "Balaytigui",
+        "Banilad",
+        "Barangay 1 (Pob.)",
+        "Barangay 2 (Pob.)",
+        "Barangay 3 (Pob.)",
+        "Barangay 4 (Pob.)",
+        "Barangay 5 (Pob.)",
+        "Barangay 6 (Pob.)",
+        "Barangay 7 (Pob.)",
+        "Barangay 8 (Pob.)",
+        "Barangay 9 (Pob.)",
+        "Barangay 10 (Pob.)",
+        "Barangay 11 (Pob.)",
+        "Barangay 12 (Pob.)",
+        "Bilaran",
+        "Bucana",
+        "Bulihan",
+        "Bunducan",
+        "Butucan",
+        "Calayo",
+        "Catandaan",
+        "Cogunan",
+        "Dayap",
+        "Kaylaway",
+        "Kayrilaw",
+        "Latag",
+        "Looc",
+        "Lumbangan",
+        "Malapad Na Bato",
+        "Mataas Na Pulo",
+        "Maugat",
+        "Munting Indang",
+        "Natipuan",
+        "Pantalan",
+        "Papaya",
+        "Putat",
+        "Reparo",
+        "Talangan",
+        "Tumalím",
+        "Utod",
+        "Wawa"
       ].map((String value) {
         return DropdownMenuItem<String>(
           value: value,
@@ -876,7 +959,8 @@ class _RegisterPageState extends State<RegisterPage> {
         );
       }).toList(),
       onChanged: (val) => setState(() => barangay = val!),
-      validator: (val) => val == null || val.isEmpty ? "Please select a barangay" : null,
+      validator: (val) =>
+          val == null || val.isEmpty ? "Please select a barangay" : null,
     );
   }
 }

@@ -123,86 +123,87 @@ class _AppliancesPageState extends State<AppliancesPage> {
   }
 
 // Add this to your class variables
-Map<String, double> _energyTotals = {};
+  Map<String, double> _energyTotals = {};
 
 // Updated _fetchPlugs method with energy data fetching
-Future<void> _fetchPlugs() async {
-  if (userId == null) {
-    print('User ID is null');
-    return;
-  }
-
-  final String apiUrl = '${dotenv.env['BASE_URL']}/api/auth/mobile/$userId/plugs';
-  final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString('token');
-
-  try {
-    final response = await http.get(Uri.parse(apiUrl));
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final List plugs = data['plugs'];
-
-      Map<String, bool> plugStates = {};
-      Map<String, double> energyTotals = {};
-
-      // Fetch status and energy for each plug
-      for (var plug in plugs) {
-        final plugId = plug['_id'];
-        
-        // Fetch switch status
-        final status = await fetchPlugSwitch(plugId);
-        plugStates[plugId] = status;
-        
-        // Fetch real-time energy data if token exists
-        if (token != null && token.isNotEmpty) {
-          final energy = await fetchTotalEnergy(plugId, token);
-          if (energy != null) {
-            energyTotals[plugId] = energy;
-          } else {
-            energyTotals[plugId] = 0.0; // Default to 0 if fetch fails
-          }
-        } else {
-          energyTotals[plugId] = 0.0; // Default if no token
-        }
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _plugs = plugs.cast<Map<String, dynamic>>();
-        _plugStates = plugStates;
-        _energyTotals = energyTotals;
-        _isLoading = false;
-      });
-    } else {
-      throw Exception('Failed to load plugs');
+  Future<void> _fetchPlugs() async {
+    if (userId == null) {
+      print('User ID is null');
+      return;
     }
-  } catch (e) {
-    print('Error fetching plugs: $e');
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+
+    final String apiUrl =
+        '${dotenv.env['BASE_URL']}/api/auth/mobile/$userId/plugs';
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    try {
+      final response = await http.get(Uri.parse(apiUrl));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List plugs = data['plugs'];
+
+        Map<String, bool> plugStates = {};
+        Map<String, double> energyTotals = {};
+
+        // Fetch status and energy for each plug
+        for (var plug in plugs) {
+          final plugId = plug['_id'];
+
+          // Fetch switch status
+          final status = await fetchPlugSwitch(plugId);
+          plugStates[plugId] = status;
+
+          // Fetch real-time energy data if token exists
+          if (token != null && token.isNotEmpty) {
+            final energy = await fetchTotalEnergy(plugId, token);
+            if (energy != null) {
+              energyTotals[plugId] = energy;
+            } else {
+              energyTotals[plugId] = 0.0; // Default to 0 if fetch fails
+            }
+          } else {
+            energyTotals[plugId] = 0.0; // Default if no token
+          }
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _plugs = plugs.cast<Map<String, dynamic>>();
+          _plugStates = plugStates;
+          _energyTotals = energyTotals;
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to load plugs');
+      }
+    } catch (e) {
+      print('Error fetching plugs: $e');
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
   }
-}
 
 // Helper method to get formatted energy display
-String _getEnergyDisplay(String plugId) {
-  final energy = _energyTotals[plugId];
-  
-  if (energy != null) {
-    return '${energy.toStringAsFixed(3)} kWh';
+  String _getEnergyDisplay(String plugId) {
+    final energy = _energyTotals[plugId];
+
+    if (energy != null) {
+      return '${energy.toStringAsFixed(3)} kWh';
+    }
+
+    // Fallback to 0.000 if no energy data
+    return '0.000 kWh';
   }
-  
-  // Fallback to 0.000 if no energy data
-  return '0.000 kWh';
-}
 
 // Enhanced subtitle with energy data from _energyTotals
-String _getSubtitle(Map<String, dynamic> plug) {
-  final applianceName = plug['applianceName'] ?? 'Unknown Appliance';
-  final energyDisplay = _getEnergyDisplay(plug['_id']);
-  
-  return '$applianceName\nTotal: $energyDisplay';
-}
+  String _getSubtitle(Map<String, dynamic> plug) {
+    final applianceName = plug['applianceName'] ?? 'Unknown Appliance';
+    final energyDisplay = _getEnergyDisplay(plug['_id']);
+
+    return '$applianceName\nTotal: $energyDisplay';
+  }
 
   Future<bool> fetchPlugSwitch(String plugId) async {
     final prefs = await SharedPreferences.getInstance();
@@ -236,149 +237,154 @@ String _getSubtitle(Map<String, dynamic> plug) {
     }
   }
 
-Future<void> togglePlugPower(String plugId, bool turnOn) async {
-  final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString('token');
+  Future<void> togglePlugPower(String plugId, bool turnOn) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
 
-  if (token == null || token.isEmpty) {
-    print('Token not found');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Authentication token not found'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-    return;
-  }
-
-  // Get plug name for better user feedback
-  final plug = _plugs.firstWhere((p) => p['_id'] == plugId, orElse: () => {});
-  final plugName = plug['name'] ?? 'Plug';
-
-  // Optimistically update UI if widget still mounted
-  if (mounted) {
-    setState(() {
-      _plugStates[plugId] = turnOn;
-    });
-  }
-
-  final endpoint = turnOn ? 'on' : 'off';
-  final url = Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId/$endpoint');
-
-  try {
-    final response = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      print('Plug $plugId turned ${turnOn ? 'on' : 'off'}');
-
-      // Show success snackbar
+    if (token == null || token.isEmpty) {
+      print('Token not found');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$plugName successfully turned ${turnOn ? 'on' : 'off'}'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
+          const SnackBar(
+            content: Text('Authentication token not found'),
+            backgroundColor: Colors.red,
           ),
         );
       }
+      return;
+    }
 
-      await Future.delayed(const Duration(seconds: 3)); // Give device time to update
+    // Get plug name for better user feedback
+    final plug = _plugs.firstWhere((p) => p['_id'] == plugId, orElse: () => {});
+    final plugName = plug['name'] ?? 'Plug';
 
-      final confirmed = await fetchPlugSwitch(plugId);
+    // Optimistically update UI if widget still mounted
+    if (mounted) {
+      setState(() {
+        _plugStates[plugId] = turnOn;
+      });
+    }
 
-      if (mounted) {
-        setState(() {
-          _plugStates[plugId] = confirmed;
-        });
+    final endpoint = turnOn ? 'on' : 'off';
+    final url =
+        Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId/$endpoint');
 
-        // If the confirmed state doesn't match what we expected, show a warning
-        if (confirmed != turnOn) {
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        print('Plug $plugId turned ${turnOn ? 'on' : 'off'}');
+
+        // Show success snackbar
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('$plugName state may not have updated correctly'),
-              backgroundColor: Colors.orange,
+              content: Text(
+                  '$plugName successfully turned ${turnOn ? 'on' : 'off'}'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+
+        await Future.delayed(
+            const Duration(seconds: 3)); // Give device time to update
+
+        final confirmed = await fetchPlugSwitch(plugId);
+
+        if (mounted) {
+          setState(() {
+            _plugStates[plugId] = confirmed;
+          });
+
+          // If the confirmed state doesn't match what we expected, show a warning
+          if (confirmed != turnOn) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('$plugName state may not have updated correctly'),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      } else {
+        print('Failed to toggle plug. Status code: ${response.statusCode}');
+
+        // Show error snackbar
+        if (mounted) {
+          setState(() {
+            _plugStates[plugId] = !turnOn; // revert UI toggle on failure
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content:
+                  Text('Failed to turn ${turnOn ? 'on' : 'off'} $plugName'),
+              backgroundColor: Colors.red,
               duration: const Duration(seconds: 3),
             ),
           );
         }
       }
-    } else {
-      print('Failed to toggle plug. Status code: ${response.statusCode}');
+    } catch (e) {
+      print('Error toggling plug: $e');
 
       // Show error snackbar
       if (mounted) {
         setState(() {
-          _plugStates[plugId] = !turnOn; // revert UI toggle on failure
+          _plugStates[plugId] = !turnOn; // revert UI toggle on error
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to turn ${turnOn ? 'on' : 'off'} $plugName'),
+            content: Text('Error turning ${turnOn ? 'on' : 'off'} $plugName'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
         );
       }
     }
-  } catch (e) {
-    print('Error toggling plug: $e');
-
-    // Show error snackbar
-    if (mounted) {
-      setState(() {
-        _plugStates[plugId] = !turnOn; // revert UI toggle on error
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error turning ${turnOn ? 'on' : 'off'} $plugName'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
   }
-}
 
   Future<double?> fetchTotalEnergy(String plugId, String token) async {
-  try {
-    final url = Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId/status');
+    try {
+      final url =
+          Uri.parse('${dotenv.env['BASE_URL']}/api/plugs/$plugId/status');
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
 
-      final total = data['raw']?['StatusSNS']?['ENERGY']?['Total'];
-      if (total != null && total is num) {
-        return total.toDouble();
+        final total = data['raw']?['StatusSNS']?['ENERGY']?['Total'];
+        if (total != null && total is num) {
+          return total.toDouble();
+        } else {
+          print('Total energy data is missing or invalid');
+          return null;
+        }
       } else {
-        print('Total energy data is missing or invalid');
+        print('Failed to fetch plug status: ${response.statusCode}');
         return null;
       }
-    } else {
-      print('Failed to fetch plug status: ${response.statusCode}');
+    } catch (e) {
+      print('Error fetching plug status: $e');
       return null;
     }
-  } catch (e) {
-    print('Error fetching plug status: $e');
-    return null;
   }
-}
 
   Future<void> _editAppliance(Map<String, dynamic> plug) async {
     await EditApplianceService.showEditApplianceModal(
@@ -483,7 +489,8 @@ Future<void> togglePlugPower(String plugId, bool turnOn) async {
                               title: plug['name'] ?? 'Unnamed Plug',
                               // subtitle:
                               //     '${plug['applianceName'] ?? 'Unknown Appliance'}\nTotal: ${plug['energy']?['Total']?.toStringAsFixed(3) ?? '0.000'} kWh',
-                              subtitle: _getSubtitle(plug), // Using the helper method
+                              subtitle:
+                                  _getSubtitle(plug), // Using the helper method
                               iconPath: _getIconPath(
                                   plug['iconKey'], plug['iconVariant']),
                               isOn: isOn,
@@ -615,7 +622,12 @@ Future<void> togglePlugPower(String plugId, bool turnOn) async {
                       child: Switch.adaptive(
                         value: isOn,
                         activeColor: toggleColor,
+                        inactiveThumbColor: isOn ? toggleColor : Colors.grey,
+                        inactiveTrackColor: isOn
+                            ? toggleColor.withOpacity(0.5)
+                            : Colors.grey.withOpacity(0.3),
                         onChanged: null,
+                        //onChanged: (value) => onToggle(value),
                       ),
                     ),
                   ),
